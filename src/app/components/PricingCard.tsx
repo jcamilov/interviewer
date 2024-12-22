@@ -1,22 +1,24 @@
-'use client'
+"use client";
 
-import { CheckIcon } from '@heroicons/react/24/solid'
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { loadStripe } from '@stripe/stripe-js'
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { CheckIcon } from "@heroicons/react/24/solid";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { loadStripe } from "@stripe/stripe-js";
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 
 // Initialize Stripe
-const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!)
+const stripePromise = loadStripe(
+  process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!
+);
 
 interface PricingCardProps {
-  title: string
-  price: string
-  description: string
-  features: string[]
-  buttonText: string
-  popular?: boolean
-  priceId: string
+  title: string;
+  price: string;
+  description: string;
+  features: string[];
+  buttonText: string;
+  popular?: boolean;
+  priceId: string;
 }
 
 const PricingCard = ({
@@ -28,59 +30,63 @@ const PricingCard = ({
   popular = false,
   priceId,
 }: PricingCardProps) => {
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const router = useRouter()
-  const supabase = createClientComponentClient()
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
+  const supabase = createClientComponentClient();
 
   const handleSubscribe = async () => {
     try {
-      setIsLoading(true)
-      setError(null)
+      setIsLoading(true);
+      setError(null);
 
       // Check if user is authenticated
-      const { data: { session } } = await supabase.auth.getSession()
-      
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
       if (!session) {
         // If not authenticated, redirect to login with return URL
-        const returnUrl = '/dashboard/billing'
-        router.push(`/auth?returnUrl=${encodeURIComponent(returnUrl)}`)
-        return
+        const returnUrl = "/dashboard/billing";
+        router.push(`/auth?returnUrl=${encodeURIComponent(returnUrl)}`);
+        return;
       }
 
       // Create Stripe Checkout Session
-      const response = await fetch('/api/create-checkout-session', {
-        method: 'POST',
+      const response = await fetch("/api/create-checkout-session", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           priceId,
         }),
-      })
+      });
 
-      const result = await response.json()
-      
+      const result = await response.json();
+
       if (!response.ok) {
-        throw new Error(result.error || 'Failed to create checkout session')
+        throw new Error(result.error || "Failed to create checkout session");
       }
 
       // Redirect to Stripe Checkout URL
-      window.location.href = result.url
+      window.location.href = result.url;
     } catch (err) {
-      console.error('Error:', err)
-      setError(err instanceof Error ? err.message : 'Failed to process subscription')
+      console.error("Error:", err);
+      setError(
+        err instanceof Error ? err.message : "Failed to process subscription"
+      );
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   return (
     <div
       className={`rounded-lg p-8 ${
         popular
-          ? 'bg-green-900/20 border-2 border-green-500'
-          : 'bg-gray-800/50 border border-gray-700'
+          ? "bg-green-900/20 border-2 border-green-500"
+          : "bg-gray-800/50 border border-gray-700"
       }`}
     >
       <h3 className="text-xl font-semibold mb-4">{title}</h3>
@@ -97,24 +103,20 @@ const PricingCard = ({
           </li>
         ))}
       </ul>
-      {error && (
-        <div className="text-red-500 text-sm mb-4">
-          {error}
-        </div>
-      )}
+      {error && <div className="text-red-500 text-sm mb-4">{error}</div>}
       <button
         onClick={handleSubscribe}
         disabled={isLoading}
         className={`w-full text-center py-3 px-6 rounded-lg transition-colors ${
           popular
-            ? 'bg-green-500 hover:bg-green-600 text-black'
-            : 'bg-white hover:bg-gray-200 text-black'
+            ? "bg-green-500 hover:bg-green-600 text-black"
+            : "bg-white hover:bg-gray-200 text-black"
         } disabled:opacity-50`}
       >
-        {isLoading ? 'Loading...' : buttonText}
+        {isLoading ? "Loading..." : buttonText}
       </button>
     </div>
-  )
-}
+  );
+};
 
-export default PricingCard 
+export default PricingCard;

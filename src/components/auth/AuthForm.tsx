@@ -1,63 +1,63 @@
-'use client'
+"use client";
 
-import { useState, useEffect } from 'react'
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
-import { useRouter, useSearchParams } from 'next/navigation'
-import Link from 'next/link'
+import { useState, useEffect } from "react";
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 
 interface AuthFormProps {
-  view?: string
+  view?: string;
 }
 
 export default function AuthForm({ view: initialView }: AuthFormProps) {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [isSignUp, setIsSignUp] = useState(initialView === 'sign-up')
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [isSignUp, setIsSignUp] = useState(initialView === "sign-up");
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  const returnUrl = searchParams?.get('returnUrl') || '/'
-  const supabase = createClientComponentClient()
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const returnUrl = searchParams?.get("returnUrl") || "/";
+  const supabase = createClientComponentClient();
 
   useEffect(() => {
-    setIsSignUp(initialView === 'sign-up')
-  }, [initialView])
+    setIsSignUp(initialView === "sign-up");
+  }, [initialView]);
 
   const handleSignIn = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsLoading(true)
-    setError(null)
+    e.preventDefault();
+    setIsLoading(true);
+    setError(null);
 
     try {
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
-      })
+      });
 
       if (error) {
-        if (error.message === 'Invalid login credentials') {
-          setError('Invalid email or password. Please try again.')
+        if (error.message === "Invalid login credentials") {
+          setError("Invalid email or password. Please try again.");
         } else {
-          setError(error.message)
+          setError(error.message);
         }
-        return
+        return;
       }
 
-      router.push(returnUrl)
-      router.refresh()
+      router.push(returnUrl);
+      router.refresh();
     } catch (error: any) {
-      setError(error.message)
+      setError(error.message);
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   const handleSignUp = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsLoading(true)
-    setError(null)
+    e.preventDefault();
+    setIsLoading(true);
+    setError(null);
 
     try {
       const { error } = await supabase.auth.signUp({
@@ -66,26 +66,26 @@ export default function AuthForm({ view: initialView }: AuthFormProps) {
         options: {
           emailRedirectTo: `${window.location.origin}/auth/callback`,
         },
-      })
+      });
 
       if (error) {
-        setError(error.message)
-        return
+        setError(error.message);
+        return;
       }
 
-      setError('Please check your email for the confirmation link.')
+      setError("Please check your email for the confirmation link.");
     } catch (error: any) {
-      setError(error.message)
+      setError(error.message);
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   return (
     <div className="flex flex-col items-center justify-center flex-1 w-full px-4">
       <div className="w-full max-w-sm space-y-6">
         <h2 className="text-2xl font-semibold text-white text-center">
-          {isSignUp ? 'Create your account' : 'Sign in to your account'}
+          {isSignUp ? "Create your account" : "Sign in to your account"}
         </h2>
 
         {error && (
@@ -94,7 +94,10 @@ export default function AuthForm({ view: initialView }: AuthFormProps) {
           </div>
         )}
 
-        <form onSubmit={isSignUp ? handleSignUp : handleSignIn} className="space-y-4">
+        <form
+          onSubmit={isSignUp ? handleSignUp : handleSignIn}
+          className="space-y-4"
+        >
           <div className="space-y-4">
             <div>
               <input
@@ -114,7 +117,7 @@ export default function AuthForm({ view: initialView }: AuthFormProps) {
                 id="password"
                 name="password"
                 type="password"
-                autoComplete={isSignUp ? 'new-password' : 'current-password'}
+                autoComplete={isSignUp ? "new-password" : "current-password"}
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -129,19 +132,21 @@ export default function AuthForm({ view: initialView }: AuthFormProps) {
             disabled={isLoading}
             className="w-full py-2 px-4 bg-[#FFBE1A] text-black rounded-lg font-medium hover:bg-[#FFBE1A]/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#FFBE1A] disabled:opacity-50 transition-colors"
           >
-            {isLoading ? 'Loading...' : (isSignUp ? 'Sign up' : 'Sign in')}
+            {isLoading ? "Loading..." : isSignUp ? "Sign up" : "Sign in"}
           </button>
 
           <div className="text-center">
             <Link
-              href={isSignUp ? '/auth' : '/auth?view=sign-up'}
+              href={isSignUp ? "/auth" : "/auth?view=sign-up"}
               className="text-[#FFBE1A] hover:text-[#FFBE1A]/80 text-sm font-medium"
             >
-              {isSignUp ? "Already have an account? Sign in" : "Don't have an account? Sign up"}
+              {isSignUp
+                ? "Already have an account? Sign in"
+                : "Don't have an account? Sign up"}
             </Link>
           </div>
         </form>
       </div>
     </div>
-  )
-} 
+  );
+}
