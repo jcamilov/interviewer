@@ -34,7 +34,8 @@ export default function InterviewList() {
 
     if (error) {
       console.error("Error fetching interviews:", error);
-      return;
+    } else {
+      console.log("Fetched interviews:", data);
     }
 
     setInterviews(data || []);
@@ -104,42 +105,47 @@ export default function InterviewList() {
       </div>
 
       <div className="bg-white rounded-lg shadow">
-        <div className="border-b">
-          <div className="grid grid-cols-[40px_1fr_1fr_1fr_1fr] p-4 font-medium text-black">
-            <div>Status</div>
-            <div>Created</div>
-            <div>Expires</div>
-            <div>Link</div>
-            <div>
-              <Checkbox
-                checked={
-                  selectedInterviews.size === interviews.length &&
-                  interviews.length > 0
-                }
-                onCheckedChange={handleSelectAll}
-              />
-            </div>
-          </div>
-        </div>
-
-        <div className="divide-y">
-          {interviews.map((interview) => (
-            <div
-              key={interview.interview_id}
-              className="grid grid-cols-[40px_1fr_1fr_1fr_1fr] p-4 hover:bg-gray-50 text-black"
-            >
-              <div className="capitalize">{interview.status}</div>
-              <div>{new Date(interview.created_at).toLocaleDateString()}</div>
-              <div>{new Date(interview.expires_at).toLocaleDateString()}</div>
-              <div className="truncate">{interview.link}</div>
-              <div>
-                <Checkbox
-                  checked={selectedInterviews.has(interview.interview_id)}
-                  onCheckedChange={() => handleSelect(interview.interview_id)}
-                />
-              </div>
-            </div>
-          ))}
+        <div className="overflow-x-auto">
+          <table className="table w-full">
+            <thead>
+              <tr>
+                <th>Status</th>
+                <th>Created</th>
+                <th>Expires</th>
+                <th>Link</th>
+                <th>
+                  <Checkbox
+                    checked={
+                      selectedInterviews.size === interviews.length &&
+                      interviews.length > 0
+                    }
+                    onCheckedChange={handleSelectAll}
+                  />
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {interviews.map((interview) => (
+                <tr
+                  key={interview.interview_id}
+                  className="bg-gray-100 hover:bg-gray-200 text-black"
+                >
+                  <td className="capitalize">{interview.status}</td>
+                  <td>{new Date(interview.created_at).toLocaleDateString()}</td>
+                  <td>{new Date(interview.expires_at).toLocaleDateString()}</td>
+                  <td className="truncate">{interview.link}</td>
+                  <td>
+                    <Checkbox
+                      checked={selectedInterviews.has(interview.interview_id)}
+                      onCheckedChange={() =>
+                        handleSelect(interview.interview_id)
+                      }
+                    />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
