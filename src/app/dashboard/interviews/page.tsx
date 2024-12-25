@@ -105,7 +105,11 @@ export default function InterviewList() {
 
       <div className="bg-white rounded-lg shadow">
         <div className="border-b">
-          <div className="grid grid-cols-[40px_1fr_1fr_1fr_1fr] p-4 font-medium">
+          <div className="grid grid-cols-[40px_1fr_1fr_1fr_1fr] p-4 font-medium text-black">
+            <div>Status</div>
+            <div>Created</div>
+            <div>Expires</div>
+            <div>Link</div>
             <div>
               <Checkbox
                 checked={
@@ -115,10 +119,6 @@ export default function InterviewList() {
                 onCheckedChange={handleSelectAll}
               />
             </div>
-            <div>Status</div>
-            <div>Created</div>
-            <div>Expires</div>
-            <div>Link</div>
           </div>
         </div>
 
@@ -126,18 +126,18 @@ export default function InterviewList() {
           {interviews.map((interview) => (
             <div
               key={interview.interview_id}
-              className="grid grid-cols-[40px_1fr_1fr_1fr_1fr] p-4 hover:bg-gray-50"
+              className="grid grid-cols-[40px_1fr_1fr_1fr_1fr] p-4 hover:bg-gray-50 text-black"
             >
+              <div className="capitalize">{interview.status}</div>
+              <div>{new Date(interview.created_at).toLocaleDateString()}</div>
+              <div>{new Date(interview.expires_at).toLocaleDateString()}</div>
+              <div className="truncate">{interview.link}</div>
               <div>
                 <Checkbox
                   checked={selectedInterviews.has(interview.interview_id)}
                   onCheckedChange={() => handleSelect(interview.interview_id)}
                 />
               </div>
-              <div className="capitalize">{interview.status}</div>
-              <div>{new Date(interview.created_at).toLocaleDateString()}</div>
-              <div>{new Date(interview.expires_at).toLocaleDateString()}</div>
-              <div className="truncate">{interview.link}</div>
             </div>
           ))}
         </div>

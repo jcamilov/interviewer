@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Textarea } from "@/components/ui/textarea";
+import { v4 as uuidv4 } from "uuid";
 
 export default function NewInterview() {
   const router = useRouter();
@@ -41,6 +42,7 @@ export default function NewInterview() {
           expires_at: expirationDate.toISOString(),
           status: "pending",
           questions: questions,
+          interviewee_id: uuidv4(),
         },
       ])
       .select();
