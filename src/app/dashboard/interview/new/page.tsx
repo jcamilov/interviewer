@@ -9,6 +9,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Textarea } from "@/components/ui/textarea";
 import { v4 as uuidv4 } from "uuid";
+import { useDropzone } from "react-dropzone";
+import { SUPABASE_BUCKET_NAME } from "@/config/config";
 
 export default function NewInterview() {
   const router = useRouter();
@@ -17,6 +19,13 @@ export default function NewInterview() {
   const [startDate, setStartDate] = useState<Date>();
   const [expirationDate, setExpirationDate] = useState<Date>();
   const [questions, setQuestions] = useState("");
+  const [files, setFiles] = useState<File[]>([]);
+
+  const onDrop = (acceptedFiles: File[]) => {
+    setFiles((prevFiles) => [...prevFiles, ...acceptedFiles]);
+  };
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({ onDrop });
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -32,6 +41,33 @@ export default function NewInterview() {
       alert("Please enter interview questions");
       setLoading(false);
       return;
+    }
+
+    // Get the current user
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      console.error("Error fetching user:", userError);
+      alert("User not authenticated");
+      setLoading(false);
+      return;
+    }
+
+    // Upload files to Supabase bucket
+    for (const file of files) {
+      const { data, error } = await supabase.storage
+        .from(SUPABASE_BUCKET_NAME)
+        .upload(`${user.id}/${uuidv4()}-${file.name}`, file);
+
+      if (error) {
+        console.error("Error uploading file:", error);
+        alert("Error uploading file: " + file.name);
+        setLoading(false);
+        return;
+      }
     }
 
     const { data, error } = await supabase
@@ -86,6 +122,27 @@ export default function NewInterview() {
                   className="min-h-[200px] resize-none"
                   required
                 />
+              </div>
+
+              <div
+                {...getRootProps()}
+                className="border-dashed border-2 p-4 text-center"
+              >
+                <input {...getInputProps()} />
+                {isDragActive ? (
+                  <p>Drop the files here ...</p>
+                ) : (
+                  <p>Drag 'n' drop some files here, or click to select files</p>
+                )}
+              </div>
+
+              <div>
+                <h4>Files:</h4>
+                <ul>
+                  {files.map((file) => (
+                    <li key={file.name}>{file.name}</li>
+                  ))}
+                </ul>
               </div>
             </div>
 
