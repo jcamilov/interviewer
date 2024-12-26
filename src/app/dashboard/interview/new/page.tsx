@@ -25,6 +25,10 @@ export default function NewInterview() {
     setFiles((prevFiles) => [...prevFiles, ...acceptedFiles]);
   };
 
+  const removeFile = (index: number) => {
+    setFiles((prevFiles) => prevFiles.filter((_, i) => i !== index));
+  };
+
   const { getRootProps, getInputProps, isDragActive } = useDropzone({ onDrop });
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -139,8 +143,20 @@ export default function NewInterview() {
               <div>
                 <h4>Files:</h4>
                 <ul>
-                  {files.map((file) => (
-                    <li key={file.name}>{file.name}</li>
+                  {files.map((file, index) => (
+                    <li
+                      key={file.name}
+                      className="flex justify-between items-center"
+                    >
+                      <span>{file.name}</span>
+                      <button
+                        type="button"
+                        onClick={() => removeFile(index)}
+                        className="text-red-500 hover:text-red-700"
+                      >
+                        Remove
+                      </button>
+                    </li>
                   ))}
                 </ul>
               </div>
