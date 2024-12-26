@@ -3,14 +3,14 @@
 import { useState } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DatePicker } from "@/components/ui/date-picker";
-import { Textarea } from "@/components/ui/textarea";
 import { v4 as uuidv4 } from "uuid";
 import { useDropzone } from "react-dropzone";
 import { SUPABASE_BUCKET_NAME } from "@/config/config";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faTrash } from "@fortawesome/free-solid-svg-icons";
 
 export default function NewInterview() {
   const router = useRouter();
@@ -105,7 +105,7 @@ export default function NewInterview() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="grid gap-6">
+            <div className="grid gap-4">
               <div className="space-y-2">
                 <Label>Start Date</Label>
                 <DatePicker date={startDate} setDate={setStartDate} />
@@ -118,12 +118,12 @@ export default function NewInterview() {
 
               <div className="space-y-2">
                 <Label htmlFor="questions">Interview Questions</Label>
-                <Textarea
+                <textarea
                   id="questions"
                   placeholder="Enter your interview questions here... (one question per line)"
                   value={questions}
                   onChange={(e) => setQuestions(e.target.value)}
-                  className="min-h-[200px] resize-none"
+                  className="textarea textarea-bordered w-full min-h-[200px] resize-none"
                   required
                 />
               </div>
@@ -146,15 +146,35 @@ export default function NewInterview() {
                   {files.map((file, index) => (
                     <li
                       key={file.name}
-                      className="flex justify-between items-center"
+                      className="flex justify-between items-center p-1"
                     >
-                      <span>{file.name}</span>
+                      <span className="truncate w-1/4">
+                        {file.name.length > 20
+                          ? `${file.name.substring(0, 17)}...`
+                          : file.name}
+                      </span>
+                      <select
+                        className="select select-bordered select-sm w-1/4"
+                        aria-label="File type"
+                        name="fileType"
+                      >
+                        <option>CV</option>
+                        <option>Job description</option>
+                        <option>Other</option>
+                      </select>
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-outline mx-2"
+                      >
+                        Edit
+                      </button>
                       <button
                         type="button"
                         onClick={() => removeFile(index)}
-                        className="text-red-500 hover:text-red-700"
+                        aria-label="Remove file"
+                        className="btn btn-sm btn-error"
                       >
-                        Remove
+                        <FontAwesomeIcon icon={faTrash} />
                       </button>
                     </li>
                   ))}
@@ -163,16 +183,20 @@ export default function NewInterview() {
             </div>
 
             <div className="flex justify-end space-x-2">
-              <Button
+              <button
                 type="button"
-                variant="outline"
+                className="btn btn-outline"
                 onClick={() => router.push("/dashboard/interviews")}
               >
                 Cancel
-              </Button>
-              <Button type="submit" disabled={loading}>
+              </button>
+              <button
+                type="submit"
+                className="btn btn-primary"
+                disabled={loading}
+              >
                 {loading ? "Creating..." : "Create Interview"}
-              </Button>
+              </button>
             </div>
           </form>
         </CardContent>
