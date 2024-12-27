@@ -21,7 +21,6 @@ export default function InterviewList() {
   );
   const router = useRouter();
   const supabase = createClientComponentClient();
-  const [dropdownSelection, setDropdownSelection] = useState<string>("");
 
   useEffect(() => {
     fetchInterviews();
@@ -82,36 +81,6 @@ export default function InterviewList() {
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Interviews</h1>
         <div className="space-x-2">
-          <details className="dropdown">
-            <summary className="border rounded p-1 cursor-pointer">
-              {dropdownSelection || "Select"}
-            </summary>
-            <ul className="dropdown-content menu p-2 shadow bg-base-100 rounded-box w-52">
-              <li>
-                <button
-                  onClick={() => {
-                    alert("Dropdown selection changed to: CV");
-                    setDropdownSelection("CV");
-                  }}
-                  className="w-full text-left"
-                >
-                  CV
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={() => {
-                    alert("Dropdown selection changed to: Other");
-                    setDropdownSelection("Other");
-                  }}
-                  className="w-full text-left"
-                >
-                  Other
-                </button>
-              </li>
-            </ul>
-          </details>
-
           {selectedInterviews.size > 0 && (
             <Button variant="destructive" onClick={handleDelete}>
               Delete Selected
@@ -122,11 +91,11 @@ export default function InterviewList() {
               variant="outline"
               onClick={() =>
                 router.push(
-                  `/dashboard/interview/edit/${Array.from(selectedInterviews)[0]}`
+                  `/dashboard/interview/${Array.from(selectedInterviews)[0]}`
                 )
               }
             >
-              {dropdownSelection === "CV" ? "Edit interviewee" : "Edit"}
+              Edit
             </Button>
           )}
           <Button onClick={() => router.push("/dashboard/interview/new")}>

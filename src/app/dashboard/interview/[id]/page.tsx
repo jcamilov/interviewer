@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DatePicker } from "@/components/ui/date-picker";
@@ -12,8 +12,8 @@ import { SUPABASE_BUCKET_NAME } from "@/config/config";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faTrash } from "@fortawesome/free-solid-svg-icons";
 
-export default function NewInterview() {
-  const router = useRouter();
+export default function EditInterview() {
+  const { id: interviewId } = useParams();
   const supabase = createClientComponentClient();
   const [loading, setLoading] = useState(false);
   const [startDate, setStartDate] = useState<Date>();
@@ -22,6 +22,34 @@ export default function NewInterview() {
   const [questionFiles, setQuestionFiles] = useState<File[]>([]);
   const [jobDescriptionFiles, setJobDescriptionFiles] = useState<File[]>([]);
   const [cvFiles, setCvFiles] = useState<File[]>([]);
+  const router = useRouter();
+
+  useEffect(() => {
+    const fetchInterviewData = async () => {
+      if (!interviewId) return;
+      const { data, error } = await supabase
+        .from("interviews")
+        .select("*")
+        .eq("interview_id", interviewId)
+        .single();
+
+      if (error) {
+        console.error("Error fetching interview data:", error);
+        return;
+      }
+
+      if (data) {
+        setStartDate(new Date(data.created_at));
+        setExpirationDate(new Date(data.expires_at));
+        setQuestions(data.questions);
+        // Assume files are stored in a way that can be retrieved and set
+      }
+
+      console.log("Supabase response:", data, error);
+    };
+
+    fetchInterviewData();
+  }, [interviewId, supabase]);
 
   const onDropQuestions = (acceptedFiles: File[]) => {
     setQuestionFiles((prevFiles) => [...prevFiles, ...acceptedFiles]);
@@ -128,21 +156,18 @@ export default function NewInterview() {
 
     const { data, error } = await supabase
       .from("interviews")
-      .insert([
-        {
-          created_at: startDate.toISOString(),
-          expires_at: expirationDate.toISOString(),
-          status: "pending",
-          questions: questions,
-          interviewee_id: uuidv4(),
-        },
-      ])
-      .select();
+      .update({
+        created_at: startDate.toISOString(),
+        expires_at: expirationDate.toISOString(),
+        status: "pending",
+        questions: questions,
+      })
+      .eq("interview_id", interviewId);
 
     setLoading(false);
 
     if (error) {
-      console.error("Error creating interview:", error);
+      console.error("Error updating interview:", error);
       return;
     }
 
@@ -153,7 +178,7 @@ export default function NewInterview() {
     <div className="container max-w-2xl mx-auto py-10">
       <Card className="bg-card">
         <CardHeader>
-          <CardTitle>Create New Interview</CardTitle>
+          <CardTitle>Edit Interview</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
@@ -315,7 +340,7 @@ export default function NewInterview() {
                 className="btn btn-primary"
                 disabled={loading}
               >
-                {loading ? "Creating..." : "Create Interview"}
+                {loading ? "Updating..." : "Update Interview"}
               </button>
             </div>
           </form>
