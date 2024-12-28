@@ -8,10 +8,10 @@ import { useRouter } from "next/navigation";
 
 interface Interview {
   interview_id: string;
-  created_at: string;
-  expires_at: string;
-  status: "pending" | "active" | "completed" | "expired";
-  link: string;
+  name: string;
+  job_description: string;
+  additional_context: string;
+  parsing_result: string;
 }
 
 export default function InterviewList() {
@@ -30,7 +30,7 @@ export default function InterviewList() {
     const { data, error } = await supabase
       .from("interviews")
       .select("*")
-      .order("created_at", { ascending: false });
+      .order("name", { ascending: false });
 
     if (error) {
       console.error("Error fetching interviews:", error);
@@ -109,10 +109,9 @@ export default function InterviewList() {
           <table className="table w-full">
             <thead>
               <tr>
-                <th>Status</th>
-                <th>Created</th>
-                <th>Expires</th>
-                <th>Link</th>
+                <th>Name</th>
+                <th>Job Description</th>
+                <th>Additional Context</th>
                 <th>
                   <Checkbox
                     checked={
@@ -130,10 +129,27 @@ export default function InterviewList() {
                   key={interview.interview_id}
                   className="bg-gray-100 hover:bg-gray-200 text-black"
                 >
-                  <td className="capitalize">{interview.status}</td>
-                  <td>{new Date(interview.created_at).toLocaleDateString()}</td>
-                  <td>{new Date(interview.expires_at).toLocaleDateString()}</td>
-                  <td className="truncate">{interview.link}</td>
+                  <td className="truncate max-w-[200px]">{interview.name}</td>
+                  <td className="truncate max-w-[300px]">
+                    <a
+                      href={interview.job_description}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-500 underline"
+                    >
+                      Download
+                    </a>
+                  </td>
+                  <td className="truncate max-w-[200px]">
+                    <a
+                      href={interview.additional_context}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-500 underline"
+                    >
+                      Download
+                    </a>
+                  </td>
                   <td>
                     <Checkbox
                       checked={selectedInterviews.has(interview.interview_id)}

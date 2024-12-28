@@ -1,79 +1,74 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
-import { useParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { DatePicker } from "@/components/ui/date-picker";
 import { v4 as uuidv4 } from "uuid";
 import { useDropzone } from "react-dropzone";
 import { SUPABASE_BUCKET_NAME } from "@/config/config";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faTrash, faSearch } from "@fortawesome/free-solid-svg-icons";
+import { faTrash } from "@fortawesome/free-solid-svg-icons";
 
-export default function EditInterview() {
-  const { id: interviewId } = useParams();
+export default function NewCandidate() {
+  const router = useRouter();
   const supabase = createClientComponentClient();
   const [loading, setLoading] = useState(false);
-  const [name, setName] = useState("");
+  const [startDate, setStartDate] = useState<Date>();
+  const [expirationDate, setExpirationDate] = useState<Date>();
+  const [questions, setQuestions] = useState("");
+  const [questionFiles, setQuestionFiles] = useState<File[]>([]);
   const [jobDescriptionFiles, setJobDescriptionFiles] = useState<File[]>([]);
-  const [additionalContextFiles, setAdditionalContextFiles] = useState<File[]>(
-    []
-  );
-  const [parsingResult, setParsingResult] = useState("");
-  const router = useRouter();
+  const [cvFiles, setCvFiles] = useState<File[]>([]);
 
-  useEffect(() => {
-    const fetchInterviewData = async () => {
-      if (!interviewId) return;
-      const { data, error } = await supabase
-        .from("interviews")
-        .select("*")
-        .eq("interview_id", interviewId)
-        .single();
-
-      if (error) {
-        console.error("Error fetching interview data:", error);
-        return;
-      }
-
-      if (data) {
-        setName(data.name);
-        setParsingResult(data.parsing_result || "");
-        // Note: We don't set the files here as they're stored in Supabase storage
-      }
-    };
-
-    fetchInterviewData();
-  }, [interviewId, supabase]);
+  const onDropQuestions = (acceptedFiles: File[]) => {
+    setQuestionFiles((prevFiles) => [...prevFiles, ...acceptedFiles]);
+  };
 
   const onDropJobDescription = (acceptedFiles: File[]) => {
     setJobDescriptionFiles((prevFiles) => [...prevFiles, ...acceptedFiles]);
   };
 
-  const onDropAdditionalContext = (acceptedFiles: File[]) => {
-    setAdditionalContextFiles((prevFiles) => [...prevFiles, ...acceptedFiles]);
+  const onDropCV = (acceptedFiles: File[]) => {
+    setCvFiles((prevFiles) => [...prevFiles, ...acceptedFiles]);
   };
 
+  const {
+    getRootProps: getRootPropsQuestions,
+    getInputProps: getInputPropsQuestions,
+    isDragActive: isDragActiveQuestions,
+  } = useDropzone({ onDrop: onDropQuestions });
   const {
     getRootProps: getRootPropsJobDescription,
     getInputProps: getInputPropsJobDescription,
     isDragActive: isDragActiveJobDescription,
   } = useDropzone({ onDrop: onDropJobDescription });
-
   const {
-    getRootProps: getRootPropsAdditionalContext,
-    getInputProps: getInputPropsAdditionalContext,
-    isDragActive: isDragActiveAdditionalContext,
-  } = useDropzone({ onDrop: onDropAdditionalContext });
+    getRootProps: getRootPropsCV,
+    getInputProps: getInputPropsCV,
+    isDragActive: isDragActiveCV,
+  } = useDropzone({ onDrop: onDropCV });
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
 
-    if (jobDescriptionFiles.length > 1) {
-      alert("Please upload at most one file for job description");
+    if (!startDate || !expirationDate) {
+      alert("Please select both start and expiration dates");
+      setLoading(false);
+      return;
+    }
+
+    if (questionFiles.length !== 1) {
+      alert("Please upload exactly one file for interview questions");
+      setLoading(false);
+      return;
+    }
+
+    if (jobDescriptionFiles.length !== 1) {
+      alert("Please upload exactly one file for job description");
       setLoading(false);
       return;
     }
@@ -91,12 +86,8 @@ export default function EditInterview() {
       return;
     }
 
-    // Upload new files to Supabase bucket if they exist
-    let jobDescriptionFileName = undefined;
-    let additionalContextFileName = undefined;
-
-    if (jobDescriptionFiles.length > 0) {
-      const file = jobDescriptionFiles[0];
+    // Upload files to Supabase bucket
+    for (const file of questionFiles) {
       const { data, error } = await supabase.storage
         .from(SUPABASE_BUCKET_NAME)
         .upload(`${user.id}/${uuidv4()}-${file.name}`, file);
@@ -107,11 +98,9 @@ export default function EditInterview() {
         setLoading(false);
         return;
       }
-      jobDescriptionFileName = file.name;
     }
 
-    if (additionalContextFiles.length > 0) {
-      const file = additionalContextFiles[0];
+    for (const file of jobDescriptionFiles) {
       const { data, error } = await supabase.storage
         .from(SUPABASE_BUCKET_NAME)
         .upload(`${user.id}/${uuidv4()}-${file.name}`, file);
@@ -122,29 +111,38 @@ export default function EditInterview() {
         setLoading(false);
         return;
       }
-      additionalContextFileName = file.name;
     }
 
-    const updateData: any = {
-      name,
-    };
+    for (const file of cvFiles) {
+      const { data, error } = await supabase.storage
+        .from(SUPABASE_BUCKET_NAME)
+        .upload(`${user.id}/${uuidv4()}-${file.name}`, file);
 
-    if (jobDescriptionFileName) {
-      updateData.job_description = jobDescriptionFileName;
-    }
-    if (additionalContextFileName) {
-      updateData.additional_context = additionalContextFileName;
+      if (error) {
+        console.error("Error uploading file:", error);
+        alert("Error uploading file: " + file.name);
+        setLoading(false);
+        return;
+      }
     }
 
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from("interviews")
-      .update(updateData)
-      .eq("interview_id", interviewId);
+      .insert([
+        {
+          created_at: startDate.toISOString(),
+          expires_at: expirationDate.toISOString(),
+          status: "pending",
+          questions: questions,
+          interviewee_id: uuidv4(),
+        },
+      ])
+      .select();
 
     setLoading(false);
 
     if (error) {
-      console.error("Error updating interview:", error);
+      console.error("Error creating interview:", error);
       return;
     }
 
@@ -155,20 +153,67 @@ export default function EditInterview() {
     <div className="container max-w-2xl mx-auto py-10">
       <Card className="bg-card">
         <CardHeader>
-          <CardTitle>Edit Interview</CardTitle>
+          <CardTitle>Add New Candidate</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-6">
-              <div className="space-y-2">
-                <Label>Name</Label>
-                <Input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="w-full"
-                />
+              <div className="flex justify-center space-x-4">
+                <div className="space-y-2">
+                  <Label>Start Date</Label>
+                  <DatePicker date={startDate} setDate={setStartDate} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Expiration Date</Label>
+                  <DatePicker
+                    date={expirationDate}
+                    setDate={setExpirationDate}
+                  />
+                </div>
               </div>
+
+              <div className="flex items-center space-x-4">
+                <Label className="w-1/4">Interview Questions</Label>
+                <div
+                  {...getRootPropsQuestions()}
+                  className="border-dashed border-2 p-4 text-center w-3/4"
+                >
+                  <input {...getInputPropsQuestions()} />
+                  {isDragActiveQuestions ? (
+                    <p>Drop the files here ...</p>
+                  ) : (
+                    <p>
+                      Drag 'n' drop some files here, or click to select files
+                    </p>
+                  )}
+                </div>
+              </div>
+              <ul>
+                {questionFiles.map((file) => (
+                  <li
+                    key={file.name}
+                    className="flex justify-between items-center p-1"
+                  >
+                    <span className="truncate w-1/4">
+                      {file.name.length > 20
+                        ? `${file.name.substring(0, 17)}...`
+                        : file.name}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setQuestionFiles((prevFiles) =>
+                          prevFiles.filter((f) => f.name !== file.name)
+                        );
+                      }}
+                      aria-label="Remove file"
+                      className="btn btn-sm btn-error btn-square"
+                    >
+                      <FontAwesomeIcon icon={faTrash} className="h-4 w-4" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
 
               <div className="flex items-center space-x-4">
                 <Label className="w-1/4">Job Description</Label>
@@ -214,13 +259,13 @@ export default function EditInterview() {
               </ul>
 
               <div className="flex items-center space-x-4">
-                <Label className="w-1/4">Additional Context</Label>
+                <Label className="w-1/4">CV</Label>
                 <div
-                  {...getRootPropsAdditionalContext()}
+                  {...getRootPropsCV()}
                   className="border-dashed border-2 p-4 text-center w-3/4"
                 >
-                  <input {...getInputPropsAdditionalContext()} />
-                  {isDragActiveAdditionalContext ? (
+                  <input {...getInputPropsCV()} />
+                  {isDragActiveCV ? (
                     <p>Drop the files here ...</p>
                   ) : (
                     <p>
@@ -230,7 +275,7 @@ export default function EditInterview() {
                 </div>
               </div>
               <ul>
-                {additionalContextFiles.map((file) => (
+                {cvFiles.map((file) => (
                   <li
                     key={file.name}
                     className="flex justify-between items-center p-1"
@@ -243,7 +288,7 @@ export default function EditInterview() {
                     <button
                       type="button"
                       onClick={() => {
-                        setAdditionalContextFiles((prevFiles) =>
+                        setCvFiles((prevFiles) =>
                           prevFiles.filter((f) => f.name !== file.name)
                         );
                       }}
@@ -255,45 +300,23 @@ export default function EditInterview() {
                   </li>
                 ))}
               </ul>
-
-              <div className="space-y-2">
-                <Label>Parsing Results</Label>
-                <div className="w-full h-24 bg-muted p-3 rounded-md">
-                  {parsingResult || "No parsing results yet..."}
-                </div>
-              </div>
             </div>
 
-            <div className="space-y-4">
-              <div className="flex justify-center">
-                <button
-                  type="button"
-                  className="btn btn-square btn-primary"
-                  onClick={() => {}}
-                >
-                  <div className="flex flex-col items-center">
-                    <FontAwesomeIcon icon={faSearch} className="h-4 w-4 mb-1" />
-                    <span className="text-xs">Analyse</span>
-                  </div>
-                </button>
-              </div>
-
-              <div className="flex justify-end space-x-2">
-                <button
-                  type="button"
-                  className="btn btn-outline"
-                  onClick={() => router.push("/dashboard/interviews")}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="btn btn-primary"
-                  disabled={loading}
-                >
-                  {loading ? "Updating..." : "Update Interview"}
-                </button>
-              </div>
+            <div className="flex justify-end space-x-2">
+              <button
+                type="button"
+                className="btn btn-outline"
+                onClick={() => router.push("/dashboard/interviews")}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="btn btn-primary"
+                disabled={loading}
+              >
+                {loading ? "Creating..." : "Create Interview"}
+              </button>
             </div>
           </form>
         </CardContent>
