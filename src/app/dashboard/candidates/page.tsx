@@ -12,6 +12,7 @@ interface Candidate {
   last_name: string;
   name: string;
   interview_status: string;
+  interview_id: string;
   interview_name: string;
 }
 
@@ -30,16 +31,25 @@ export default function CandidateList() {
   async function fetchCandidates() {
     const { data, error } = await supabase
       .from("candidates")
-      .select("*")
+      .select(
+        `
+        *,
+        interviews:interview_id (
+          name
+        )
+      `
+      )
       .order("last_name", { ascending: true });
 
     if (error) {
       console.error("Error fetching candidates:", error);
     } else {
-      console.log("Fetched candidates:", data);
+      const transformedData = data?.map((candidate) => ({
+        ...candidate,
+        interview_name: candidate.interviews?.name || "",
+      }));
+      setCandidates(transformedData || []);
     }
-
-    setCandidates(data || []);
   }
 
   const handleSelect = (candidateId: string) => {
