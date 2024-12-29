@@ -1,326 +1,251 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DatePicker } from "@/components/ui/date-picker";
-import { v4 as uuidv4 } from "uuid";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useDropzone } from "react-dropzone";
-import { SUPABASE_BUCKET_NAME } from "@/config/config";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faTrash } from "@fortawesome/free-solid-svg-icons";
+import { PlusIcon } from "@heroicons/react/24/outline";
+
+interface Interview {
+  interview_id: string;
+  name: string;
+}
 
 export default function NewCandidate() {
   const router = useRouter();
   const supabase = createClientComponentClient();
   const [loading, setLoading] = useState(false);
+  const [interviews, setInterviews] = useState<Interview[]>([]);
+
+  // Personal Data
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [email, setEmail] = useState("");
+  const [birthDate, setBirthDate] = useState<Date>();
+
+  // Interview Data
   const [startDate, setStartDate] = useState<Date>();
-  const [expirationDate, setExpirationDate] = useState<Date>();
-  const [questions, setQuestions] = useState("");
-  const [questionFiles, setQuestionFiles] = useState<File[]>([]);
-  const [jobDescriptionFiles, setJobDescriptionFiles] = useState<File[]>([]);
-  const [cvFiles, setCvFiles] = useState<File[]>([]);
+  const [endDate, setEndDate] = useState<Date>();
+  const [selectedInterview, setSelectedInterview] = useState<string>();
 
-  const onDropQuestions = (acceptedFiles: File[]) => {
-    setQuestionFiles((prevFiles) => [...prevFiles, ...acceptedFiles]);
+  // CV Upload
+  const [cvFile, setCvFile] = useState<File | null>(null);
+
+  useEffect(() => {
+    fetchInterviews();
+  }, []);
+
+  async function fetchInterviews() {
+    const { data, error } = await supabase
+      .from("interviews")
+      .select("interview_id, name")
+      .order("name", { ascending: true });
+
+    if (error) {
+      console.error("Error fetching interviews:", error);
+    } else {
+      setInterviews(data || []);
+    }
+  }
+
+  const onDrop = (acceptedFiles: File[]) => {
+    if (acceptedFiles.length > 0) {
+      setCvFile(acceptedFiles[0]);
+    }
   };
 
-  const onDropJobDescription = (acceptedFiles: File[]) => {
-    setJobDescriptionFiles((prevFiles) => [...prevFiles, ...acceptedFiles]);
-  };
-
-  const onDropCV = (acceptedFiles: File[]) => {
-    setCvFiles((prevFiles) => [...prevFiles, ...acceptedFiles]);
-  };
-
-  const {
-    getRootProps: getRootPropsQuestions,
-    getInputProps: getInputPropsQuestions,
-    isDragActive: isDragActiveQuestions,
-  } = useDropzone({ onDrop: onDropQuestions });
-  const {
-    getRootProps: getRootPropsJobDescription,
-    getInputProps: getInputPropsJobDescription,
-    isDragActive: isDragActiveJobDescription,
-  } = useDropzone({ onDrop: onDropJobDescription });
-  const {
-    getRootProps: getRootPropsCV,
-    getInputProps: getInputPropsCV,
-    isDragActive: isDragActiveCV,
-  } = useDropzone({ onDrop: onDropCV });
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
+    maxFiles: 1,
+    accept: {
+      "application/pdf": [".pdf"],
+      "application/msword": [".doc"],
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+        [".docx"],
+    },
+  });
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
 
-    if (!startDate || !expirationDate) {
-      alert("Please select both start and expiration dates");
-      setLoading(false);
-      return;
-    }
+    try {
+      // Upload CV if present
+      let cvUrl = null;
+      if (cvFile) {
+        const fileExt = cvFile.name.split(".").pop();
+        const fileName = `${Date.now()}.${fileExt}`;
+        const { error: uploadError, data } = await supabase.storage
+          .from("cvs")
+          .upload(fileName, cvFile);
 
-    if (questionFiles.length !== 1) {
-      alert("Please upload exactly one file for interview questions");
-      setLoading(false);
-      return;
-    }
-
-    if (jobDescriptionFiles.length !== 1) {
-      alert("Please upload exactly one file for job description");
-      setLoading(false);
-      return;
-    }
-
-    // Get the current user
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
-
-    if (userError || !user) {
-      console.error("Error fetching user:", userError);
-      alert("User not authenticated");
-      setLoading(false);
-      return;
-    }
-
-    // Upload files to Supabase bucket
-    for (const file of questionFiles) {
-      const { data, error } = await supabase.storage
-        .from(SUPABASE_BUCKET_NAME)
-        .upload(`${user.id}/${uuidv4()}-${file.name}`, file);
-
-      if (error) {
-        console.error("Error uploading file:", error);
-        alert("Error uploading file: " + file.name);
-        setLoading(false);
-        return;
+        if (uploadError) throw uploadError;
+        cvUrl = data.path;
       }
-    }
 
-    for (const file of jobDescriptionFiles) {
-      const { data, error } = await supabase.storage
-        .from(SUPABASE_BUCKET_NAME)
-        .upload(`${user.id}/${uuidv4()}-${file.name}`, file);
-
-      if (error) {
-        console.error("Error uploading file:", error);
-        alert("Error uploading file: " + file.name);
-        setLoading(false);
-        return;
-      }
-    }
-
-    for (const file of cvFiles) {
-      const { data, error } = await supabase.storage
-        .from(SUPABASE_BUCKET_NAME)
-        .upload(`${user.id}/${uuidv4()}-${file.name}`, file);
-
-      if (error) {
-        console.error("Error uploading file:", error);
-        alert("Error uploading file: " + file.name);
-        setLoading(false);
-        return;
-      }
-    }
-
-    const { data, error } = await supabase
-      .from("interviews")
-      .insert([
+      // Create candidate record
+      const { error: insertError } = await supabase.from("candidates").insert([
         {
-          created_at: startDate.toISOString(),
-          expires_at: expirationDate.toISOString(),
-          status: "pending",
-          questions: questions,
-          interviewee_id: uuidv4(),
+          name: firstName,
+          last_name: lastName,
+          email: email,
+          birth_date: birthDate?.toISOString(),
+          interview_id: selectedInterview,
+          // interview_start_date: startDate?.toISOString(),
+          // interview_end_date: endDate?.toISOString(),
+          cv: cvUrl,
+          // interview_status: "Not started",
         },
-      ])
-      .select();
+      ]);
 
-    setLoading(false);
+      if (insertError) throw insertError;
 
-    if (error) {
-      console.error("Error creating interview:", error);
-      return;
+      router.push("/dashboard/candidates");
+    } catch (error) {
+      console.error("Error creating candidate:", error);
+      alert("Error creating candidate. Please try again.");
+    } finally {
+      setLoading(false);
     }
-
-    router.push("/dashboard/interviews");
   };
 
   return (
     <div className="container max-w-2xl mx-auto py-10">
-      <Card className="bg-card">
-        <CardHeader>
-          <CardTitle>Add New Candidate</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="space-y-6">
-              <div className="flex justify-center space-x-4">
+      <h1 className="text-2xl font-bold mb-6">New Candidate</h1>
+      <form onSubmit={handleSubmit}>
+        <div className="space-y-6">
+          {/* CV Upload Section */}
+          <Card>
+            <CardHeader>
+              <CardTitle>CV Upload</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div
+                {...getRootProps()}
+                className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer
+                  ${isDragActive ? "border-primary bg-primary/10" : "border-gray-300"}
+                  ${cvFile ? "bg-green-50" : ""}`}
+              >
+                <input {...getInputProps()} />
+                <div className="flex flex-col items-center space-y-2">
+                  <PlusIcon className="h-8 w-8 text-gray-400" />
+                  {cvFile ? (
+                    <p className="text-sm text-gray-600">{cvFile.name}</p>
+                  ) : (
+                    <>
+                      <p className="text-sm text-gray-600">
+                        Drag and drop your CV here
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        Supported formats: PDF, DOC, DOCX
+                      </p>
+                    </>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Personal Data Section */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Personal Data</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="lastName">Last Name</Label>
+                  <Input
+                    id="lastName"
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="firstName">First Name</Label>
+                  <Input
+                    id="firstName"
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Birth Date</Label>
+                <DatePicker date={birthDate} setDate={setBirthDate} />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Interview Section */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Interview</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Start Date</Label>
                   <DatePicker date={startDate} setDate={setStartDate} />
                 </div>
                 <div className="space-y-2">
-                  <Label>Expiration Date</Label>
-                  <DatePicker
-                    date={expirationDate}
-                    setDate={setExpirationDate}
-                  />
+                  <Label>End Date</Label>
+                  <DatePicker date={endDate} setDate={setEndDate} />
                 </div>
               </div>
-
-              <div className="flex items-center space-x-4">
-                <Label className="w-1/4">Interview Questions</Label>
-                <div
-                  {...getRootPropsQuestions()}
-                  className="border-dashed border-2 p-4 text-center w-3/4"
+              <div className="space-y-2">
+                <Label>Assign interview</Label>
+                <select
+                  className="select select-bordered w-full"
+                  value={selectedInterview}
+                  onChange={(e) => setSelectedInterview(e.target.value)}
                 >
-                  <input {...getInputPropsQuestions()} />
-                  {isDragActiveQuestions ? (
-                    <p>Drop the files here ...</p>
-                  ) : (
-                    <p>
-                      Drag 'n' drop some files here, or click to select files
-                    </p>
-                  )}
-                </div>
-              </div>
-              <ul>
-                {questionFiles.map((file) => (
-                  <li
-                    key={file.name}
-                    className="flex justify-between items-center p-1"
-                  >
-                    <span className="truncate w-1/4">
-                      {file.name.length > 20
-                        ? `${file.name.substring(0, 17)}...`
-                        : file.name}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setQuestionFiles((prevFiles) =>
-                          prevFiles.filter((f) => f.name !== file.name)
-                        );
-                      }}
-                      aria-label="Remove file"
-                      className="btn btn-sm btn-error btn-square"
+                  <option value="">Select Interview</option>
+                  {interviews.map((interview) => (
+                    <option
+                      key={interview.interview_id}
+                      value={interview.interview_id}
                     >
-                      <FontAwesomeIcon icon={faTrash} className="h-4 w-4" />
-                    </button>
-                  </li>
-                ))}
-              </ul>
-
-              <div className="flex items-center space-x-4">
-                <Label className="w-1/4">Job Description</Label>
-                <div
-                  {...getRootPropsJobDescription()}
-                  className="border-dashed border-2 p-4 text-center w-3/4"
-                >
-                  <input {...getInputPropsJobDescription()} />
-                  {isDragActiveJobDescription ? (
-                    <p>Drop the files here ...</p>
-                  ) : (
-                    <p>
-                      Drag 'n' drop some files here, or click to select files
-                    </p>
-                  )}
-                </div>
+                      {interview.name}
+                    </option>
+                  ))}
+                </select>
               </div>
-              <ul>
-                {jobDescriptionFiles.map((file) => (
-                  <li
-                    key={file.name}
-                    className="flex justify-between items-center p-1"
-                  >
-                    <span className="truncate w-1/4">
-                      {file.name.length > 20
-                        ? `${file.name.substring(0, 17)}...`
-                        : file.name}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setJobDescriptionFiles((prevFiles) =>
-                          prevFiles.filter((f) => f.name !== file.name)
-                        );
-                      }}
-                      aria-label="Remove file"
-                      className="btn btn-sm btn-error btn-square"
-                    >
-                      <FontAwesomeIcon icon={faTrash} className="h-4 w-4" />
-                    </button>
-                  </li>
-                ))}
-              </ul>
+            </CardContent>
+          </Card>
 
-              <div className="flex items-center space-x-4">
-                <Label className="w-1/4">CV</Label>
-                <div
-                  {...getRootPropsCV()}
-                  className="border-dashed border-2 p-4 text-center w-3/4"
-                >
-                  <input {...getInputPropsCV()} />
-                  {isDragActiveCV ? (
-                    <p>Drop the files here ...</p>
-                  ) : (
-                    <p>
-                      Drag 'n' drop some files here, or click to select files
-                    </p>
-                  )}
-                </div>
-              </div>
-              <ul>
-                {cvFiles.map((file) => (
-                  <li
-                    key={file.name}
-                    className="flex justify-between items-center p-1"
-                  >
-                    <span className="truncate w-1/4">
-                      {file.name.length > 20
-                        ? `${file.name.substring(0, 17)}...`
-                        : file.name}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setCvFiles((prevFiles) =>
-                          prevFiles.filter((f) => f.name !== file.name)
-                        );
-                      }}
-                      aria-label="Remove file"
-                      className="btn btn-sm btn-error btn-square"
-                    >
-                      <FontAwesomeIcon icon={faTrash} className="h-4 w-4" />
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            <div className="flex justify-end space-x-2">
-              <button
-                type="button"
-                className="btn btn-outline"
-                onClick={() => router.push("/dashboard/interviews")}
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="btn btn-primary"
-                disabled={loading}
-              >
-                {loading ? "Creating..." : "Create Interview"}
-              </button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
+          {/* Action Buttons */}
+          <div className="flex justify-end space-x-4">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => router.push("/dashboard/candidates")}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" disabled={loading}>
+              {loading ? "Creating..." : "Create Candidate"}
+            </Button>
+          </div>
+        </div>
+      </form>
     </div>
   );
 }

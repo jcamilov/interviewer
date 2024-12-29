@@ -11,6 +11,7 @@ import {
   DocumentTextIcon,
   Cog6ToothIcon,
   MicrophoneIcon,
+  UserPlusIcon,
 } from "@heroicons/react/24/outline";
 import Header from "@/components/dashboard/Header";
 
@@ -23,6 +24,7 @@ interface NavItem {
 const navigation: NavItem[] = [
   { name: "Overview", href: "/dashboard", icon: HomeIcon },
   { name: "Interviews", href: "/dashboard/interviews", icon: MicrophoneIcon },
+  { name: "Candidates", href: "/dashboard/candidates", icon: UserPlusIcon },
   { name: "Analytics", href: "/dashboard/analytics", icon: ChartBarIcon },
   { name: "Profile", href: "/dashboard/profile", icon: UserCircleIcon },
   { name: "Documents", href: "/dashboard/documents", icon: DocumentTextIcon },
