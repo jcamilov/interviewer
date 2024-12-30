@@ -9,7 +9,14 @@ import { Label } from "@/components/ui/label";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useDropzone } from "react-dropzone";
-import { PlusIcon } from "@heroicons/react/24/outline";
+import { PlusIcon, ShareIcon } from "@heroicons/react/24/outline";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 
 interface Interview {
   interview_id: string;
@@ -35,6 +42,8 @@ export default function NewCandidate() {
 
   // CV Upload
   const [cvFile, setCvFile] = useState<File | null>(null);
+
+  const [interviewLink, setInterviewLink] = useState<string>("");
 
   useEffect(() => {
     fetchInterviews();
@@ -146,13 +155,14 @@ export default function NewCandidate() {
 
       // Create interview session first
       console.log("Creating interview session: ", interview_session_id);
+      const interviewLink = `https://candidates.super-recuit.com/${interview_session_id}`;
       const { error: sessionError } = await supabase
         .from("interview_sessions")
         .insert([
           {
             interview_session_id,
             status: selectedInterview ? "Prepared" : "No interview assigned",
-            link: `https://candidates.super-recuit.com/${interview_session_id}`,
+            link: interviewLink,
             candidate_id,
             interview_id: selectedInterview || null,
           },
@@ -160,6 +170,7 @@ export default function NewCandidate() {
 
       if (sessionError) throw sessionError;
 
+      setInterviewLink(interviewLink);
       router.push("/dashboard/candidates");
     } catch (error) {
       console.error("Error creating candidate:", error);
@@ -267,21 +278,64 @@ export default function NewCandidate() {
               </div>
               <div className="space-y-2">
                 <Label>Assign interview</Label>
-                <select
-                  className="select select-bordered w-full"
-                  value={selectedInterview}
-                  onChange={(e) => setSelectedInterview(e.target.value)}
-                >
-                  <option value="">Select Interview</option>
-                  {interviews.map((interview) => (
-                    <option
-                      key={interview.interview_id}
-                      value={interview.interview_id}
-                    >
-                      {interview.name}
-                    </option>
-                  ))}
-                </select>
+                <div className="flex gap-2">
+                  <select
+                    className="select select-bordered w-full"
+                    value={selectedInterview}
+                    onChange={(e) => setSelectedInterview(e.target.value)}
+                  >
+                    <option value="">Select Interview</option>
+                    {interviews.map((interview) => (
+                      <option
+                        key={interview.interview_id}
+                        value={interview.interview_id}
+                      >
+                        {interview.name}
+                      </option>
+                    ))}
+                  </select>
+                  {interviewLink && (
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="px-2"
+                          title="Share interview"
+                        >
+                          <ShareIcon className="h-4 w-4" />
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Share Interview Link</DialogTitle>
+                        </DialogHeader>
+                        <div className="flex flex-col gap-4">
+                          <p className="text-sm text-gray-500">
+                            Share this link with the candidate to start the
+                            interview:
+                          </p>
+                          <div className="flex gap-2">
+                            <Input
+                              value={interviewLink}
+                              readOnly
+                              onClick={(e) => e.currentTarget.select()}
+                            />
+                            <Button
+                              type="button"
+                              onClick={() => {
+                                navigator.clipboard.writeText(interviewLink);
+                                alert("Link copied to clipboard!");
+                              }}
+                            >
+                              Copy
+                            </Button>
+                          </div>
+                        </div>
+                      </DialogContent>
+                    </Dialog>
+                  )}
+                </div>
               </div>
             </CardContent>
           </Card>

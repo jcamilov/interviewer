@@ -5,7 +5,18 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useRouter } from "next/navigation";
-import { DocumentTextIcon, UserPlusIcon } from "@heroicons/react/24/outline";
+import {
+  DocumentTextIcon,
+  UserPlusIcon,
+  ShareIcon,
+} from "@heroicons/react/24/outline";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 
 interface Candidate {
   candidate_id: string;
@@ -16,6 +27,7 @@ interface Candidate {
   interview_session_id: string | null;
   session_status: string | null;
   status: string;
+  link: string | null;
 }
 
 export default function CandidateList() {
@@ -24,6 +36,9 @@ export default function CandidateList() {
   const [selectedCandidates, setSelectedCandidates] = useState<Set<string>>(
     new Set()
   );
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [selectedLink, setSelectedLink] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
   const router = useRouter();
   const supabase = createClientComponentClient();
 
@@ -41,6 +56,7 @@ export default function CandidateList() {
           interview_session_id,
           status,
           interview_id,
+          link,
           interviews!interview_sessions_interview_id_fkey (
             name
           )
@@ -68,6 +84,7 @@ export default function CandidateList() {
         interview_id: candidate.interview_sessions?.[0]?.interview_id || null,
         interview_name:
           candidate.interview_sessions?.[0]?.interviews?.name || null,
+        link: candidate.interview_sessions?.[0]?.link || null,
       }));
       setCandidates(transformedData || []);
     }
@@ -119,6 +136,26 @@ export default function CandidateList() {
 
     setSelectedCandidates(new Set());
     fetchCandidates();
+  };
+
+  const handleShare = (link: string | null) => {
+    if (link) {
+      setSelectedLink(link);
+      setIsShareModalOpen(true);
+      setCopied(false);
+    }
+  };
+
+  const handleCopyLink = async () => {
+    if (selectedLink) {
+      try {
+        await navigator.clipboard.writeText(selectedLink);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000); // Reset after 2 seconds
+      } catch (err) {
+        console.error("Failed to copy text: ", err);
+      }
+    }
   };
 
   return (
@@ -213,6 +250,14 @@ export default function CandidateList() {
                     >
                       <UserPlusIcon className="h-5 w-5" />
                     </button>
+                    <button
+                      onClick={() => handleShare(candidate.link)}
+                      className="p-1 hover:bg-gray-300 rounded"
+                      title="Share Interview"
+                      disabled={!candidate.link}
+                    >
+                      <ShareIcon className="h-5 w-5" />
+                    </button>
                   </td>
                   <td className="truncate max-w-[200px]">
                     {candidate.interview_name || "Not assigned"}
@@ -231,6 +276,27 @@ export default function CandidateList() {
           </table>
         </div>
       </div>
+      <Dialog open={isShareModalOpen} onOpenChange={setIsShareModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Interview Link</DialogTitle>
+            <DialogDescription>
+              Share this link with the candidate to start the interview
+            </DialogDescription>
+          </DialogHeader>
+          <div
+            onClick={handleCopyLink}
+            className="p-4 bg-gray-100 rounded-md cursor-pointer hover:bg-gray-200 transition-colors relative group"
+          >
+            <p className="break-all">{selectedLink}</p>
+            <div className="absolute inset-0 flex items-center justify-center bg-black/5 opacity-0 group-hover:opacity-100 transition-opacity">
+              <span className="bg-black/70 text-white px-2 py-1 rounded text-sm">
+                {copied ? "Copied!" : "Click to copy"}
+              </span>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
