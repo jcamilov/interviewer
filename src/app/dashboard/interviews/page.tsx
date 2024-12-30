@@ -13,11 +13,14 @@ interface RawInterviewSession {
   report: string;
   transcript: string;
   audio_interview: string;
-  candidates: Array<{
+  candidate: {
     name: string;
     last_name: string;
     email: string;
-  }>;
+    phone_number: string;
+    cv: string;
+    status: string;
+  } | null;
 }
 
 interface RawInterview {
@@ -46,7 +49,10 @@ interface Interview {
       name: string;
       last_name: string;
       email: string;
-    };
+      phone_number: string;
+      cv: string;
+      status: string;
+    } | null;
   }[];
 }
 
@@ -68,17 +74,20 @@ export default function InterviewList() {
       .select(
         `
         *,
-        interview_sessions(
+        interview_sessions!interview_sessions_interview_id_fkey(
           interview_session_id,
           status,
           link,
           report,
           transcript,
           audio_interview,
-          candidates(
+          candidate:candidates(
             name,
             last_name,
-            email
+            email,
+            phone_number,
+            cv,
+            status
           )
         )
       `
@@ -89,14 +98,9 @@ export default function InterviewList() {
       console.error("Error fetching interviews:", error);
     } else {
       console.log("Fetched interviews:", data);
-      // Transform the data to match our Interview interface
       const transformedData = (data as RawInterview[])?.map((interview) => ({
         ...interview,
-        sessions:
-          interview.interview_sessions?.map((session) => ({
-            ...session,
-            candidate: session.candidates?.[0] || null,
-          })) || [],
+        sessions: interview.interview_sessions || [],
       }));
       setInterviews(transformedData || []);
     }
