@@ -138,6 +138,43 @@ export default function EditCandidate() {
 
       if (updateError) throw updateError;
 
+      // Handle interview session
+      if (selectedInterview) {
+        // Check if candidate already has an interview session
+        const { data: existingSession } = await supabase
+          .from("interview_sessions")
+          .select("interview_session_id")
+          .eq("candidate_id", candidateId)
+          .single();
+
+        if (!existingSession) {
+          // Create new interview session
+          const { error: sessionError } = await supabase
+            .from("interview_sessions")
+            .insert([
+              {
+                status: "Prepared",
+                link: `https://candidates.super-recruit.com/${candidateId}`,
+                candidate_id: candidateId,
+                interview_id: selectedInterview,
+              },
+            ]);
+
+          if (sessionError) throw sessionError;
+        } else {
+          // Update existing session
+          const { error: sessionError } = await supabase
+            .from("interview_sessions")
+            .update({
+              interview_id: selectedInterview,
+              status: "Prepared",
+            })
+            .eq("interview_session_id", existingSession.interview_session_id);
+
+          if (sessionError) throw sessionError;
+        }
+      }
+
       router.push("/dashboard/candidates");
     } catch (error) {
       console.error("Error updating candidate:", error);

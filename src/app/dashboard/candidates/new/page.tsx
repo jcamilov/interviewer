@@ -62,20 +62,33 @@ export default function NewCandidate() {
       formData.append("file", acceptedFiles[0]);
 
       try {
-        const response = await fetch("/api/parse-cv", {
+        console.log("Sending file to API:", acceptedFiles[0].name);
+        const response = await fetch("/api/test", {
           method: "POST",
+          headers: {
+            Accept: "application/json",
+          },
           body: formData,
         });
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
 
         const data = await response.json();
         console.log("CV Parse Response:", data);
 
         // Populate form fields with parsed data
-        if (data.firstName) setFirstName(data.firstName);
-        if (data.lastName) setLastName(data.lastName);
-        if (data.email) setEmail(data.email);
+        // if (data.summary) {
+        //   console.log("Received summary:", data.summary);
+        //   // Handle the summary data as needed
+        // }
       } catch (error) {
         console.error("Error parsing CV:", error);
+        // Add user feedback
+        alert(
+          "Failed to parse CV. Please try again or proceed with manual entry."
+        );
       }
     }
   };
@@ -109,22 +122,43 @@ export default function NewCandidate() {
         cvUrl = data.path;
       }
 
-      // Create candidate record
-      const { error: insertError } = await supabase.from("candidates").insert([
-        {
-          name: firstName,
-          last_name: lastName,
-          email: email,
-          birth_date: birthDate?.toISOString(),
-          interview_id: selectedInterview,
-          // interview_start_date: startDate?.toISOString(),
-          // interview_end_date: endDate?.toISOString(),
-          cv: cvUrl,
-          // interview_status: "Not started",
-        },
-      ]);
+      // Generate UUIDs
+      const candidate_id = crypto.randomUUID();
+      const interview_session_id = crypto.randomUUID();
+      // Then create candidate record
+      console.log("Creating candidate: ", candidate_id);
+      const { error: candidateError } = await supabase
+        .from("candidates")
+        .insert([
+          {
+            candidate_id,
+            name: firstName,
+            last_name: lastName,
+            email: email,
+            birth_date: birthDate?.toISOString(),
+            interview_id: selectedInterview || null,
+            cv: cvUrl,
+            status: "active",
+          },
+        ]);
 
-      if (insertError) throw insertError;
+      if (candidateError) throw candidateError;
+
+      // Create interview session first
+      console.log("Creating interview session: ", interview_session_id);
+      const { error: sessionError } = await supabase
+        .from("interview_sessions")
+        .insert([
+          {
+            interview_session_id,
+            status: selectedInterview ? "Prepared" : "No interview assigned",
+            link: `https://candidates.super-recuit.com/${interview_session_id}`,
+            candidate_id,
+            interview_id: selectedInterview || null,
+          },
+        ]);
+
+      if (sessionError) throw sessionError;
 
       router.push("/dashboard/candidates");
     } catch (error) {

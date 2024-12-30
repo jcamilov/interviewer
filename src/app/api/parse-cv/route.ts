@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
-
+import { parseFile } from '@/utils/parse-file';
+import { addTimestampToFileName } from '@/utils/testfile';
 // Initialize OpenAI client
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -18,6 +19,19 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
+
+    // console.log(await parseFile(file) ? "Parsed" : "Not parsed");
+    const timestampedFileName = addTimestampToFileName(file);
+    console.log(timestampedFileName);
+
+    // Convert File to Buffer before parsing
+    // const arrayBuffer = await file.arrayBuffer();
+    // const buffer = Buffer.from(arrayBuffer);
+    
+    // // use pdf-parse to extract text from the file
+    // const pdfData = await pdfParse(buffer);
+    // const extractedText = pdfData.text;
+    // console.log('Extracted text from file:', extractedText);
 
     // Get filename instead of converting to base64
     const fileName = file.name;

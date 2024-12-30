@@ -11,13 +11,16 @@ interface Candidate {
   candidate_id: string;
   last_name: string;
   name: string;
-  interview_status: string;
-  interview_id: string;
-  interview_name: string;
+  interview_id: string | null;
+  interview_name: string | null;
+  interview_session_id: string | null;
+  session_status: string | null;
+  status: string;
 }
 
 export default function CandidateList() {
   const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [showArchived, setShowArchived] = useState(false);
   const [selectedCandidates, setSelectedCandidates] = useState<Set<string>>(
     new Set()
   );
@@ -26,27 +29,45 @@ export default function CandidateList() {
 
   useEffect(() => {
     fetchCandidates();
-  }, []);
+  }, [showArchived]);
 
   async function fetchCandidates() {
-    const { data, error } = await supabase
+    const query = supabase
       .from("candidates")
       .select(
         `
         *,
-        interviews:interview_id (
-          name
+        interview_sessions (
+          interview_session_id,
+          status,
+          interview_id,
+          interviews!interview_sessions_interview_id_fkey (
+            name
+          )
         )
       `
       )
       .order("last_name", { ascending: true });
+
+    // Apply status filter based on showArchived toggle
+    if (!showArchived) {
+      query.eq("status", "active");
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       console.error("Error fetching candidates:", error);
     } else {
       const transformedData = data?.map((candidate) => ({
         ...candidate,
-        interview_name: candidate.interviews?.name || "",
+        interview_session_id:
+          candidate.interview_sessions?.[0]?.interview_session_id || null,
+        session_status:
+          candidate.interview_sessions?.[0]?.status || "No interview assigned",
+        interview_id: candidate.interview_sessions?.[0]?.interview_id || null,
+        interview_name:
+          candidate.interview_sessions?.[0]?.interviews?.name || null,
       }));
       setCandidates(transformedData || []);
     }
@@ -70,16 +91,29 @@ export default function CandidateList() {
     }
   };
 
-  const handleDelete = async () => {
+  const handleAssignInterview = async (candidateId: string) => {
+    // Navigate to the edit page where we can assign the interview
+    router.push(`/dashboard/candidates/${candidateId}`);
+  };
+
+  const handleArchive = async () => {
     if (selectedCandidates.size === 0) return;
+
+    // Show confirmation dialog for multiple archives
+    if (selectedCandidates.size > 1) {
+      const confirmed = window.confirm(
+        `Are you sure you want to archive ${selectedCandidates.size} candidates? You can restore them later from the archive.`
+      );
+      if (!confirmed) return;
+    }
 
     const { error } = await supabase
       .from("candidates")
-      .delete()
+      .update({ status: "archived" })
       .in("candidate_id", Array.from(selectedCandidates));
 
     if (error) {
-      console.error("Error deleting candidates:", error);
+      console.error("Error archiving candidates:", error);
       return;
     }
 
@@ -90,11 +124,23 @@ export default function CandidateList() {
   return (
     <div className="p-6">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Candidates</h1>
+        <div className="flex items-center space-x-4">
+          <h1 className="text-2xl font-bold">Candidates</h1>
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              checked={showArchived}
+              onCheckedChange={(checked) => setShowArchived(checked as boolean)}
+              id="show-archived"
+            />
+            <label htmlFor="show-archived" className="text-sm text-gray-600">
+              Show archived candidates
+            </label>
+          </div>
+        </div>
         <div className="space-x-2">
           {selectedCandidates.size > 0 && (
-            <Button variant="destructive" onClick={handleDelete}>
-              Delete Selected
+            <Button variant="destructive" onClick={handleArchive}>
+              Archive Selected
             </Button>
           )}
           {selectedCandidates.size === 1 && (
@@ -145,7 +191,7 @@ export default function CandidateList() {
                     {candidate.last_name}, {candidate.name}
                   </td>
                   <td className="truncate max-w-[150px]">
-                    {candidate.interview_status}
+                    {candidate.session_status}
                   </td>
                   <td className="flex space-x-2">
                     <button
@@ -154,13 +200,14 @@ export default function CandidateList() {
                       }}
                       className="p-1 hover:bg-gray-300 rounded"
                       title="View Report"
+                      disabled={!candidate.interview_session_id}
                     >
                       <DocumentTextIcon className="h-5 w-5" />
                     </button>
                     <button
-                      onClick={() => {
-                        // Handle assign interview
-                      }}
+                      onClick={() =>
+                        handleAssignInterview(candidate.candidate_id)
+                      }
                       className="p-1 hover:bg-gray-300 rounded"
                       title="Assign Interview"
                     >
@@ -168,7 +215,7 @@ export default function CandidateList() {
                     </button>
                   </td>
                   <td className="truncate max-w-[200px]">
-                    {candidate.interview_name}
+                    {candidate.interview_name || "Not assigned"}
                   </td>
                   <td>
                     <Checkbox

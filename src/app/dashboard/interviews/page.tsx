@@ -6,12 +6,48 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useRouter } from "next/navigation";
 
+interface RawInterviewSession {
+  interview_session_id: string;
+  status: string;
+  link: string;
+  report: string;
+  transcript: string;
+  audio_interview: string;
+  candidates: Array<{
+    name: string;
+    last_name: string;
+    email: string;
+  }>;
+}
+
+interface RawInterview {
+  interview_id: string;
+  name: string;
+  job_description: string;
+  additional_context: string;
+  parsing_result: string;
+  interview_sessions: RawInterviewSession[];
+}
+
 interface Interview {
   interview_id: string;
   name: string;
   job_description: string;
   additional_context: string;
   parsing_result: string;
+  sessions: {
+    interview_session_id: string;
+    status: string;
+    link: string;
+    report: string;
+    transcript: string;
+    audio_interview: string;
+    candidate: {
+      name: string;
+      last_name: string;
+      email: string;
+    };
+  }[];
 }
 
 export default function InterviewList() {
@@ -29,16 +65,41 @@ export default function InterviewList() {
   async function fetchInterviews() {
     const { data, error } = await supabase
       .from("interviews")
-      .select("*")
+      .select(
+        `
+        *,
+        interview_sessions(
+          interview_session_id,
+          status,
+          link,
+          report,
+          transcript,
+          audio_interview,
+          candidates(
+            name,
+            last_name,
+            email
+          )
+        )
+      `
+      )
       .order("name", { ascending: false });
 
     if (error) {
       console.error("Error fetching interviews:", error);
     } else {
       console.log("Fetched interviews:", data);
+      // Transform the data to match our Interview interface
+      const transformedData = (data as RawInterview[])?.map((interview) => ({
+        ...interview,
+        sessions:
+          interview.interview_sessions?.map((session) => ({
+            ...session,
+            candidate: session.candidates?.[0] || null,
+          })) || [],
+      }));
+      setInterviews(transformedData || []);
     }
-
-    setInterviews(data || []);
   }
 
   const handleSelect = (interviewId: string) => {
@@ -112,6 +173,7 @@ export default function InterviewList() {
                 <th>Name</th>
                 <th>Job Description</th>
                 <th>Additional Context</th>
+                <th>Sessions</th>
                 <th>
                   <Checkbox
                     checked={
@@ -149,6 +211,11 @@ export default function InterviewList() {
                     >
                       Download
                     </a>
+                  </td>
+                  <td className="truncate max-w-[200px]">
+                    {interview.sessions
+                      ?.map((session) => session.status || "Not assigned")
+                      .join(", ") || "Not assigned"}
                   </td>
                   <td>
                     <Checkbox
