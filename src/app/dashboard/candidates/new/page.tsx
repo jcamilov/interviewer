@@ -53,9 +53,30 @@ export default function NewCandidate() {
     }
   }
 
-  const onDrop = (acceptedFiles: File[]) => {
+  const onDrop = async (acceptedFiles: File[]) => {
     if (acceptedFiles.length > 0) {
       setCvFile(acceptedFiles[0]);
+
+      // Send file to parse-cv endpoint
+      const formData = new FormData();
+      formData.append("file", acceptedFiles[0]);
+
+      try {
+        const response = await fetch("/api/parse-cv", {
+          method: "POST",
+          body: formData,
+        });
+
+        const data = await response.json();
+        console.log("CV Parse Response:", data);
+
+        // Populate form fields with parsed data
+        if (data.firstName) setFirstName(data.firstName);
+        if (data.lastName) setLastName(data.lastName);
+        if (data.email) setEmail(data.email);
+      } catch (error) {
+        console.error("Error parsing CV:", error);
+      }
     }
   };
 
