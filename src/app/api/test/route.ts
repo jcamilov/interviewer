@@ -29,8 +29,8 @@ export async function POST(request: Request) {
     }
 
     // parse the file
-    const parsedFile = await parseFile(file, fileExtension as 'pdf' | 'docx');
-    console.log(parsedFile);
+    // const parsedFile = await parseFile(file, fileExtension as 'pdf' | 'docx');
+    // console.log(parsedFile);
 
     return NextResponse.json({ 
       success: true,
