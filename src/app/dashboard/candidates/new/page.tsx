@@ -72,7 +72,7 @@ export default function NewCandidate() {
 
       try {
         console.log("Sending file to API:", acceptedFiles[0].name);
-        const response = await fetch("/api/test", {
+        const response = await fetch("/api/parse-cv", {
           method: "POST",
           headers: {
             Accept: "application/json",

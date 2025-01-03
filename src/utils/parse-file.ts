@@ -1,33 +1,38 @@
-import pdfParse from 'pdf-parse';
-import * as mammoth from 'mammoth';
+import edenAi from '@api/eden-ai';
+import { env } from 'process';
 
-/**
- * Parses a PDF or DOCX file and extracts the text content
- * @param file File object to parse
- * @param fileType Type of the file ('pdf' or 'docx')
- * @returns Promise<boolean> true if parsing was successful, false otherwise
- */
-export async function parseFile(file: File, fileType: 'pdf' | 'docx'): Promise<boolean> {
-    try {
-        const arrayBuffer = await file.arrayBuffer();
-        const buffer = Buffer.from(arrayBuffer);
-        let text = '';
+export const parseFile = async (file: File | Blob) => {
+  // Check file type
+  if (!file.type.match(/(pdf|msword|vnd.openxmlformats-officedocument.wordprocessingml.document)/)) {
+    throw new Error('File must be PDF or DOCX format');
+  }
 
-        if (fileType === 'pdf') {
-            const pdfData = await pdfParse(buffer);
-            text = pdfData.text;
-        } else if (fileType === 'docx') {
-            const result = await mammoth.extractRawText({ buffer });
-            text = result.value;
-        } else {
-            console.error('Unsupported file format. Only PDF and DOCX files are supported.');
-            return false;
-        }
+  try {
+    const formData = new FormData();
+    formData.append('providers', 'openai/gpt-4o-mini');
+    formData.append('file', file);
 
-        console.log('Extracted text:', text);
-        return true;
-    } catch (error) {
-        console.error('Error parsing file:', error);
-        return false;
+    const response = await fetch('https://api.edenai.run/v2/ocr/resume_parser', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.EDENAI_BEARER_TOKEN}`,
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(`Eden AI API error: ${JSON.stringify(errorData)}`);
     }
+
+    const data = await response.json();
+    if (!data) {
+      throw new Error("No data returned from Eden AI");
+    }
+
+    return data;
+  } catch (error) {
+    console.error("Error in parseFile:", error);
+    throw error instanceof Error ? error : new Error('Failed to parse file');
+  }
 }

@@ -1,61 +1,46 @@
 import { NextResponse } from 'next/server';
-import OpenAI from 'openai';
 import { parseFile } from '@/utils/parse-file';
-import { addTimestampToFileName } from '@/utils/testfile';
-// Initialize OpenAI client
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+};
 
 export async function POST(request: Request) {
   try {
     // Get the form data from the request
     const formData = await request.formData();
-    const file = formData.get('file') as File;
+    const file = formData.get('file');
 
-    if (!file) {
+    if (!file || !(file instanceof Blob)) {
       return NextResponse.json(
-        { error: 'No file provided' },
+        { error: 'No valid file provided' },
         { status: 400 }
       );
     }
 
-    // console.log(await parseFile(file) ? "Parsed" : "Not parsed");
-    const timestampedFileName = addTimestampToFileName(file);
-    console.log(timestampedFileName);
+    // Get the file name and type
+    const fileName = 'file' in file ? file.name : 'uploaded-file';
+    const fileType = file.type;
 
-    // Convert File to Buffer before parsing
-    // const arrayBuffer = await file.arrayBuffer();
-    // const buffer = Buffer.from(arrayBuffer);
-    
-    // // use pdf-parse to extract text from the file
-    // const pdfData = await pdfParse(buffer);
-    // const extractedText = pdfData.text;
-    // console.log('Extracted text from file:', extractedText);
-
-    // Get filename instead of converting to base64
-    const fileName = file.name;
-
-    // Send to OpenAI
-    const response = await openai.chat.completions.create({
-      model: "gpt-4",
-      messages: [
-        {
-          role: "user",
-          content: `Based on this filename: "${fileName}", what type of document is this likely to be?`
-        },
-      ],
-      max_tokens: 500,
-    });
-
-    return NextResponse.json({
-      summary: response.choices[0].message.content,
-    });
-
+    // Parse the file
+    try {
+      const parsedData = await parseFile(file);
+      return NextResponse.json({ parsedData, fileName });
+    } catch (error) {
+      console.error('Error parsing file:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      return NextResponse.json(
+        { error: 'Failed to parse CV file', details: errorMessage },
+        { status: 422 }
+      );
+    }
   } catch (error) {
-    console.error('Error processing file:', error);
+    console.error('Error handling request:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(
-      { error: 'Error processing file' },
+      { error: 'Internal server error', details: errorMessage },
       { status: 500 }
     );
   }
