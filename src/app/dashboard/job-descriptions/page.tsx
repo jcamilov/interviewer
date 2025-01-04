@@ -6,8 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useRouter } from "next/navigation";
 
-interface RawInterviewSession {
-  interview_session_id: string;
+interface RawJobDescriptionSession {
+  job_description_session_id: string;
   status: string;
   link: string;
   report: string;
@@ -23,23 +23,23 @@ interface RawInterviewSession {
   } | null;
 }
 
-interface RawInterview {
-  interview_id: string;
+interface RawJobDescription {
+  job_description_id: string;
   name: string;
   job_description: string;
   additional_context: string;
   parsing_result: string;
-  interview_sessions: RawInterviewSession[];
+  job_description_sessions: RawJobDescriptionSession[];
 }
 
-interface Interview {
-  interview_id: string;
+interface JobDescription {
+  job_description_id: string;
   name: string;
   job_description: string;
   additional_context: string;
   parsing_result: string;
   sessions: {
-    interview_session_id: string;
+    job_description_id: string;
     status: string;
     link: string;
     report: string;
@@ -56,26 +56,26 @@ interface Interview {
   }[];
 }
 
-export default function InterviewList() {
-  const [interviews, setInterviews] = useState<Interview[]>([]);
-  const [selectedInterviews, setSelectedInterviews] = useState<Set<string>>(
-    new Set()
-  );
+export default function JobDescriptionList() {
+  const [jobDescriptions, setJobDescriptions] = useState<JobDescription[]>([]);
+  const [selectedJobDescriptions, setSelectedJobDescriptions] = useState<
+    Set<string>
+  >(new Set());
   const router = useRouter();
   const supabase = createClientComponentClient();
 
   useEffect(() => {
-    fetchInterviews();
+    fetchJobDescriptions();
   }, []);
 
-  async function fetchInterviews() {
+  async function fetchJobDescriptions() {
     const { data, error } = await supabase
-      .from("interviews")
+      .from("job_descriptions")
       .select(
         `
         *,
-        interview_sessions!interview_sessions_interview_id_fkey(
-          interview_session_id,
+        job_description_sessions!job_description_sessions_job_description_id_fkey(
+          job_description_id,
           status,
           link,
           report,
@@ -95,76 +95,83 @@ export default function InterviewList() {
       .order("name", { ascending: false });
 
     if (error) {
-      console.error("Error fetching interviews:", error);
+      console.error("Error fetching job descriptions:", error);
     } else {
-      console.log("Fetched interviews:", data);
-      const transformedData = (data as RawInterview[])?.map((interview) => ({
-        ...interview,
-        sessions: interview.interview_sessions || [],
-      }));
-      setInterviews(transformedData || []);
+      const transformedData = (data as RawJobDescription[])?.map(
+        (jobDescription) => ({
+          ...jobDescription,
+          sessions:
+            jobDescription.job_description_sessions.map((session) => ({
+              ...session,
+              job_description_id: session.job_description_session_id,
+            })) || [],
+        })
+      );
+      setJobDescriptions(transformedData || []);
     }
   }
 
-  const handleSelect = (interviewId: string) => {
-    const newSelected = new Set(selectedInterviews);
-    if (newSelected.has(interviewId)) {
-      newSelected.delete(interviewId);
+  const handleSelect = (jobDescriptionId: string) => {
+    const newSelected = new Set(selectedJobDescriptions);
+    if (newSelected.has(jobDescriptionId)) {
+      newSelected.delete(jobDescriptionId);
     } else {
-      newSelected.add(interviewId);
+      newSelected.add(jobDescriptionId);
     }
-    setSelectedInterviews(newSelected);
+    setSelectedJobDescriptions(newSelected);
   };
 
   const handleSelectAll = () => {
-    if (selectedInterviews.size === interviews.length) {
-      setSelectedInterviews(new Set());
+    if (selectedJobDescriptions.size === jobDescriptions.length) {
+      setSelectedJobDescriptions(new Set());
     } else {
-      setSelectedInterviews(new Set(interviews.map((i) => i.interview_id)));
+      setSelectedJobDescriptions(
+        new Set(jobDescriptions.map((i) => i.job_description_id))
+      );
     }
   };
 
   const handleDelete = async () => {
-    if (selectedInterviews.size === 0) return;
+    if (selectedJobDescriptions.size === 0) return;
 
     const { error } = await supabase
-      .from("interviews")
+      .from("job_descriptions")
       .delete()
-      .in("interview_id", Array.from(selectedInterviews));
+      .in("job_description_id", Array.from(selectedJobDescriptions));
 
     if (error) {
-      console.error("Error deleting interviews:", error);
+      console.error("Error deleting job descriptions:", error);
       return;
     }
 
-    setSelectedInterviews(new Set());
-    fetchInterviews();
+    setSelectedJobDescriptions(new Set());
+    fetchJobDescriptions();
   };
 
   return (
     <div className="p-6">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Interviews</h1>
+        <h1 className="text-2xl font-bold">Job Descriptions</h1>
         <div className="space-x-2">
-          {selectedInterviews.size > 0 && (
+          {selectedJobDescriptions.size > 0 && (
             <Button variant="destructive" onClick={handleDelete}>
               Delete Selected
             </Button>
           )}
-          {selectedInterviews.size === 1 && (
+          {selectedJobDescriptions.size === 1 && (
             <Button
               variant="outline"
               onClick={() =>
                 router.push(
-                  `/dashboard/interview/${Array.from(selectedInterviews)[0]}`
+                  `/dashboard/job-description/${Array.from(selectedJobDescriptions)[0]}`
                 )
               }
             >
               Edit
             </Button>
           )}
-          <Button onClick={() => router.push("/dashboard/interview/new")}>
-            New Interview
+          <Button onClick={() => router.push("/dashboard/job-description/new")}>
+            New Job Description
           </Button>
         </div>
       </div>
@@ -181,8 +188,8 @@ export default function InterviewList() {
                 <th>
                   <Checkbox
                     checked={
-                      selectedInterviews.size === interviews.length &&
-                      interviews.length > 0
+                      selectedJobDescriptions.size === jobDescriptions.length &&
+                      jobDescriptions.length > 0
                     }
                     onCheckedChange={handleSelectAll}
                   />
@@ -190,15 +197,17 @@ export default function InterviewList() {
               </tr>
             </thead>
             <tbody>
-              {interviews.map((interview) => (
+              {jobDescriptions.map((jobDescription) => (
                 <tr
-                  key={interview.interview_id}
+                  key={jobDescription.job_description_id}
                   className="bg-gray-100 hover:bg-gray-200 text-black"
                 >
-                  <td className="truncate max-w-[200px]">{interview.name}</td>
+                  <td className="truncate max-w-[200px]">
+                    {jobDescription.name}
+                  </td>
                   <td className="truncate max-w-[300px]">
                     <a
-                      href={interview.job_description}
+                      href={jobDescription.job_description}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-blue-500 underline"
@@ -208,7 +217,7 @@ export default function InterviewList() {
                   </td>
                   <td className="truncate max-w-[200px]">
                     <a
-                      href={interview.additional_context}
+                      href={jobDescription.additional_context}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-blue-500 underline"
@@ -217,15 +226,17 @@ export default function InterviewList() {
                     </a>
                   </td>
                   <td className="truncate max-w-[200px]">
-                    {interview.sessions
+                    {jobDescription.sessions
                       ?.map((session) => session.status || "Not assigned")
                       .join(", ") || "Not assigned"}
                   </td>
                   <td>
                     <Checkbox
-                      checked={selectedInterviews.has(interview.interview_id)}
+                      checked={selectedJobDescriptions.has(
+                        jobDescription.job_description_id
+                      )}
                       onCheckedChange={() =>
-                        handleSelect(interview.interview_id)
+                        handleSelect(jobDescription.job_description_id)
                       }
                     />
                   </td>

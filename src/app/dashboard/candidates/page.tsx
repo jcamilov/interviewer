@@ -1,92 +1,62 @@
 "use client";
 
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { useRouter } from "next/navigation";
-import {
-  DocumentTextIcon,
-  UserPlusIcon,
-  ShareIcon,
-} from "@heroicons/react/24/outline";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
 } from "@/components/ui/dialog";
 
 interface Candidate {
   candidate_id: string;
-  last_name: string;
   name: string;
-  interview_id: string | null;
-  interview_name: string | null;
-  interview_session_id: string | null;
-  session_status: string | null;
+  last_name: string;
+  email: string;
+  phone_number: string;
+  cv: string;
   status: string;
-  link: string | null;
+  job_description_id: string | null;
 }
 
 export default function CandidateList() {
   const [candidates, setCandidates] = useState<Candidate[]>([]);
-  const [showArchived, setShowArchived] = useState(false);
   const [selectedCandidates, setSelectedCandidates] = useState<Set<string>>(
     new Set()
   );
-  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
-  const [selectedLink, setSelectedLink] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
   const router = useRouter();
   const supabase = createClientComponentClient();
 
   useEffect(() => {
     fetchCandidates();
-  }, [showArchived]);
+  }, []);
 
   async function fetchCandidates() {
-    const query = supabase
+    const { data, error } = await supabase
       .from("candidates")
       .select(
         `
         *,
-        interview_sessions (
-          interview_session_id,
-          status,
-          interview_id,
-          link,
-          interviews!interview_sessions_interview_id_fkey (
-            name
-          )
+        job_descriptions (
+          name
         )
       `
       )
-      .order("last_name", { ascending: true });
-
-    // Apply status filter based on showArchived toggle
-    if (!showArchived) {
-      query.eq("status", "active");
-    }
-
-    const { data, error } = await query;
+      .order("name", { ascending: false });
 
     if (error) {
       console.error("Error fetching candidates:", error);
     } else {
-      const transformedData = data?.map((candidate) => ({
+      const transformedData = data.map((candidate: any) => ({
         ...candidate,
-        interview_session_id:
-          candidate.interview_sessions?.[0]?.interview_session_id || null,
-        session_status:
-          candidate.interview_sessions?.[0]?.status || "No interview assigned",
-        interview_id: candidate.interview_sessions?.[0]?.interview_id || null,
-        interview_name:
-          candidate.interview_sessions?.[0]?.interviews?.name || null,
-        link: candidate.interview_sessions?.[0]?.link || null,
+        job_description_name: candidate.job_descriptions?.name || null,
       }));
-      setCandidates(transformedData || []);
+      setCandidates(transformedData);
     }
   }
 
@@ -108,29 +78,16 @@ export default function CandidateList() {
     }
   };
 
-  const handleAssignInterview = async (candidateId: string) => {
-    // Navigate to the edit page where we can assign the interview
-    router.push(`/dashboard/candidates/${candidateId}`);
-  };
-
-  const handleArchive = async () => {
+  const handleDelete = async () => {
     if (selectedCandidates.size === 0) return;
-
-    // Show confirmation dialog for multiple archives
-    if (selectedCandidates.size > 1) {
-      const confirmed = window.confirm(
-        `Are you sure you want to archive ${selectedCandidates.size} candidates? You can restore them later from the archive.`
-      );
-      if (!confirmed) return;
-    }
 
     const { error } = await supabase
       .from("candidates")
-      .update({ status: "archived" })
+      .delete()
       .in("candidate_id", Array.from(selectedCandidates));
 
     if (error) {
-      console.error("Error archiving candidates:", error);
+      console.error("Error deleting candidates:", error);
       return;
     }
 
@@ -138,46 +95,19 @@ export default function CandidateList() {
     fetchCandidates();
   };
 
-  const handleShare = (link: string | null) => {
-    if (link) {
-      setSelectedLink(link);
-      setIsShareModalOpen(true);
-      setCopied(false);
-    }
-  };
-
-  const handleCopyLink = async () => {
-    if (selectedLink) {
-      try {
-        await navigator.clipboard.writeText(selectedLink);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000); // Reset after 2 seconds
-      } catch (err) {
-        console.error("Failed to copy text: ", err);
-      }
-    }
+  const handleAssignJobDescription = async (candidateId: string) => {
+    // Navigate to the edit page where we can assign the job description
+    router.push(`/dashboard/candidates/${candidateId}`);
   };
 
   return (
     <div className="p-6">
       <div className="flex justify-between items-center mb-6">
-        <div className="flex items-center space-x-4">
-          <h1 className="text-2xl font-bold">Candidates</h1>
-          <div className="flex items-center space-x-2">
-            <Checkbox
-              checked={showArchived}
-              onCheckedChange={(checked) => setShowArchived(checked as boolean)}
-              id="show-archived"
-            />
-            <label htmlFor="show-archived" className="text-sm text-gray-600">
-              Show archived candidates
-            </label>
-          </div>
-        </div>
+        <h1 className="text-2xl font-bold">Candidates</h1>
         <div className="space-x-2">
           {selectedCandidates.size > 0 && (
-            <Button variant="destructive" onClick={handleArchive}>
-              Archive Selected
+            <Button variant="destructive" onClick={handleDelete}>
+              Delete Selected
             </Button>
           )}
           {selectedCandidates.size === 1 && (
@@ -203,10 +133,13 @@ export default function CandidateList() {
           <table className="table w-full">
             <thead>
               <tr>
-                <th>Full Name</th>
-                <th>Interview Status</th>
-                <th className="w-24">Actions</th>
-                <th>Interview Name</th>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Phone</th>
+                <th>CV</th>
+                <th>Status</th>
+                <th>Job Description</th>
+                <th>Actions</th>
                 <th>
                   <Checkbox
                     checked={
@@ -227,40 +160,33 @@ export default function CandidateList() {
                   <td className="truncate max-w-[200px]">
                     {candidate.last_name}, {candidate.name}
                   </td>
+                  <td className="truncate max-w-[200px]">{candidate.email}</td>
                   <td className="truncate max-w-[150px]">
-                    {candidate.session_status}
+                    {candidate.phone_number}
                   </td>
-                  <td className="flex space-x-2">
-                    <button
-                      onClick={() => {
-                        // Handle view report
-                      }}
-                      className="p-1 hover:bg-gray-300 rounded"
-                      title="View Report"
-                      disabled={!candidate.interview_session_id}
+                  <td>
+                    <a
+                      href={candidate.cv}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-500 underline"
                     >
-                      <DocumentTextIcon className="h-5 w-5" />
-                    </button>
-                    <button
+                      Download
+                    </a>
+                  </td>
+                  <td>{candidate.status}</td>
+                  <td>{candidate.job_description_id || "Not assigned"}</td>
+                  <td>
+                    <Button
+                      variant="outline"
+                      size="sm"
                       onClick={() =>
-                        handleAssignInterview(candidate.candidate_id)
+                        handleAssignJobDescription(candidate.candidate_id)
                       }
-                      className="p-1 hover:bg-gray-300 rounded"
-                      title="Assign Interview"
+                      title="Assign Job Description"
                     >
-                      <UserPlusIcon className="h-5 w-5" />
-                    </button>
-                    <button
-                      onClick={() => handleShare(candidate.link)}
-                      className="p-1 hover:bg-gray-300 rounded"
-                      title="Share Interview"
-                      disabled={!candidate.link}
-                    >
-                      <ShareIcon className="h-5 w-5" />
-                    </button>
-                  </td>
-                  <td className="truncate max-w-[200px]">
-                    {candidate.interview_name || "Not assigned"}
+                      Assign
+                    </Button>
                   </td>
                   <td>
                     <Checkbox
@@ -276,27 +202,6 @@ export default function CandidateList() {
           </table>
         </div>
       </div>
-      <Dialog open={isShareModalOpen} onOpenChange={setIsShareModalOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Interview Link</DialogTitle>
-            <DialogDescription>
-              Share this link with the candidate to start the interview
-            </DialogDescription>
-          </DialogHeader>
-          <div
-            onClick={handleCopyLink}
-            className="p-4 bg-gray-100 rounded-md cursor-pointer hover:bg-gray-200 transition-colors relative group"
-          >
-            <p className="break-all">{selectedLink}</p>
-            <div className="absolute inset-0 flex items-center justify-center bg-black/5 opacity-0 group-hover:opacity-100 transition-opacity">
-              <span className="bg-black/70 text-white px-2 py-1 rounded text-sm">
-                {copied ? "Copied!" : "Click to copy"}
-              </span>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

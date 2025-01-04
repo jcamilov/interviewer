@@ -18,8 +18,8 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 
-interface Interview {
-  interview_id: string;
+interface JobDescription {
+  job_description_id: string;
   name: string;
 }
 
@@ -27,18 +27,20 @@ export default function NewCandidate() {
   const router = useRouter();
   const supabase = createClientComponentClient();
   const [loading, setLoading] = useState(false);
-  const [interviews, setInterviews] = useState<Interview[]>([]);
+  const [jobDescriptions, setJobDescriptions] = useState<JobDescription[]>([]);
 
   // Personal Data
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
-  const [birthDate, setBirthDate] = useState<Date>();
+  const [profile, setProfile] = useState("");
+  const [parsedCV, setParsedCV] = useState({}); // we expect a JSON object
 
   // Interview Data
   const [startDate, setStartDate] = useState<Date>();
   const [endDate, setEndDate] = useState<Date>();
-  const [selectedInterview, setSelectedInterview] = useState<string>();
+  const [selectedJobDescription, setSelectedJobDescription] =
+    useState<string>();
 
   // CV Upload
   const [cvFile, setCvFile] = useState<File | null>(null);
@@ -46,19 +48,19 @@ export default function NewCandidate() {
   const [interviewLink, setInterviewLink] = useState<string>("");
 
   useEffect(() => {
-    fetchInterviews();
+    fetchJobDescriptions();
   }, []);
 
-  async function fetchInterviews() {
+  async function fetchJobDescriptions() {
     const { data, error } = await supabase
-      .from("interviews")
-      .select("interview_id, name")
+      .from("job_descriptions")
+      .select("job_description_id, name")
       .order("name", { ascending: true });
 
     if (error) {
-      console.error("Error fetching interviews:", error);
+      console.error("Error fetching job descriptions:", error);
     } else {
-      setInterviews(data || []);
+      setJobDescriptions(data || []);
     }
   }
 
@@ -144,10 +146,10 @@ export default function NewCandidate() {
             name: firstName,
             last_name: lastName,
             email: email,
-            birth_date: birthDate?.toISOString(),
-            interview_id: selectedInterview || null,
             cv: cvUrl,
             status: "active",
+            job_description_id: selectedJobDescription || null,
+            profile,
           },
         ]);
 
@@ -161,10 +163,15 @@ export default function NewCandidate() {
         .insert([
           {
             interview_session_id,
-            status: selectedInterview ? "Prepared" : "No interview assigned",
+            status: selectedJobDescription
+              ? "Prepared"
+              : "No interview assigned",
             link: interviewLink,
             candidate_id,
-            interview_id: selectedInterview || null,
+            job_description_id: selectedJobDescription || null,
+            report: null,
+            transcript: null,
+            audio_interview: null,
           },
         ]);
 
@@ -254,43 +261,27 @@ export default function NewCandidate() {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Birth Date</Label>
-                <DatePicker date={birthDate} setDate={setBirthDate} />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Interview Section */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Interview</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Start Date</Label>
-                  <DatePicker date={startDate} setDate={setStartDate} />
-                </div>
-                <div className="space-y-2">
-                  <Label>End Date</Label>
-                  <DatePicker date={endDate} setDate={setEndDate} />
-                </div>
+                <Label>Profile</Label>
+                <Input
+                  value={profile}
+                  onChange={(e) => setProfile(e.target.value)}
+                />
               </div>
               <div className="space-y-2">
-                <Label>Assign interview</Label>
+                <Label>(optional) Assign to a job opening</Label>
                 <div className="flex gap-2">
                   <select
                     className="select select-bordered w-full"
-                    value={selectedInterview}
-                    onChange={(e) => setSelectedInterview(e.target.value)}
+                    value={selectedJobDescription}
+                    onChange={(e) => setSelectedJobDescription(e.target.value)}
                   >
-                    <option value="">Select Interview</option>
-                    {interviews.map((interview) => (
+                    <option value="">Select Job Description</option>
+                    {jobDescriptions.map((jobDescription) => (
                       <option
-                        key={interview.interview_id}
-                        value={interview.interview_id}
+                        key={jobDescription.job_description_id}
+                        value={jobDescription.job_description_id}
                       >
-                        {interview.name}
+                        {jobDescription.name}
                       </option>
                     ))}
                   </select>
@@ -335,6 +326,25 @@ export default function NewCandidate() {
                       </DialogContent>
                     </Dialog>
                   )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Interview Section */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Interview</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Start Date</Label>
+                  <DatePicker date={startDate} setDate={setStartDate} />
+                </div>
+                <div className="space-y-2">
+                  <Label>End Date</Label>
+                  <DatePicker date={endDate} setDate={setEndDate} />
                 </div>
               </div>
             </CardContent>

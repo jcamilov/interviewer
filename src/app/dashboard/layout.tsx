@@ -23,7 +23,11 @@ interface NavItem {
 
 const navigation: NavItem[] = [
   { name: "Overview", href: "/dashboard", icon: HomeIcon },
-  { name: "Interviews", href: "/dashboard/interviews", icon: MicrophoneIcon },
+  {
+    name: "Job Descriptions",
+    href: "/dashboard/job-descriptions",
+    icon: MicrophoneIcon,
+  },
   { name: "Candidates", href: "/dashboard/candidates", icon: UserPlusIcon },
   { name: "Analytics", href: "/dashboard/analytics", icon: ChartBarIcon },
   { name: "Profile", href: "/dashboard/profile", icon: UserCircleIcon },
