@@ -24,6 +24,7 @@ interface JobDescription {
 }
 
 export default function NewCandidate() {
+  const bucket = "user-files";
   const router = useRouter();
   const supabase = createClientComponentClient();
   const [loading, setLoading] = useState(false);
@@ -34,13 +35,13 @@ export default function NewCandidate() {
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [profile, setProfile] = useState("");
-  const [parsedCV, setParsedCV] = useState({}); // we expect a JSON object
+  const [parsedCV, setParsedCV] = useState<Record<string, any>>({});
+  const [selectedJobDescription, setSelectedJobDescription] =
+    useState<string>("");
 
   // Interview Data
-  const [startDate, setStartDate] = useState<Date>();
-  const [endDate, setEndDate] = useState<Date>();
-  const [selectedJobDescription, setSelectedJobDescription] =
-    useState<string>();
+  const [startDate, setStartDate] = useState<Date | undefined>(undefined);
+  const [endDate, setEndDate] = useState<Date | undefined>(undefined);
 
   // CV Upload
   const [cvFile, setCvFile] = useState<File | null>(null);
@@ -89,11 +90,12 @@ export default function NewCandidate() {
         const data = await response.json();
         console.log("CV Parse Response:", data);
 
-        // Populate form fields with parsed data
-        // if (data.summary) {
-        //   console.log("Received summary:", data.summary);
-        //   // Handle the summary data as needed
-        // }
+        // populate the form fields with the parsed data from Eden AI
+        setParsedCV(data.parsedData || {});
+        setFirstName(data.parsedData?.personal_infos?.name?.first_name || "");
+        setLastName(data.parsedData?.personal_infos?.name?.last_name || "");
+        setEmail(data.parsedData?.personal_infos?.mails?.[0] || "");
+        setProfile(data.parsedData?.personal_infos?.self_summary || "");
       } catch (error) {
         console.error("Error parsing CV:", error);
         // Add user feedback
@@ -118,26 +120,49 @@ export default function NewCandidate() {
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
+    console.log("Starting form submission...");
 
     try {
-      // Upload CV if present
-      let cvUrl = null;
-      if (cvFile) {
-        const fileExt = cvFile.name.split(".").pop();
-        const fileName = `${Date.now()}.${fileExt}`;
-        const { error: uploadError, data } = await supabase.storage
-          .from("cvs")
-          .upload(fileName, cvFile);
-
-        if (uploadError) throw uploadError;
-        cvUrl = data.path;
-      }
-
       // Generate UUIDs
       const candidate_id = crypto.randomUUID();
       const interview_session_id = crypto.randomUUID();
+      console.log("Generated IDs:", { candidate_id, interview_session_id });
+
+      // Get current user
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+      if (userError) {
+        console.error("User authentication error:", userError);
+        throw userError;
+      }
+      if (!user) {
+        console.error("No user found");
+        throw new Error("User not authenticated");
+      }
+      console.log("User authenticated:", user.id);
+
+      // Upload CV if present
+      let cvUrl = null;
+      if (cvFile) {
+        console.log("Uploading CV file...");
+        const fileExt = cvFile.name.split(".").pop();
+        const fileName = `${user.id}/${candidate_id}/cv.${fileExt}`;
+        const { error: uploadError, data } = await supabase.storage
+          .from(bucket)
+          .upload(fileName, cvFile);
+
+        if (uploadError) {
+          console.error("CV upload error:", uploadError);
+          throw uploadError;
+        }
+        cvUrl = data.path;
+        console.log("CV uploaded successfully:", cvUrl);
+      }
+
       // Then create candidate record
-      console.log("Creating candidate: ", candidate_id);
+      console.log("Creating candidate record...");
       const { error: candidateError } = await supabase
         .from("candidates")
         .insert([
@@ -150,13 +175,18 @@ export default function NewCandidate() {
             status: "active",
             job_description_id: selectedJobDescription || null,
             profile,
+            parsed_cv: parsedCV,
           },
         ]);
 
-      if (candidateError) throw candidateError;
+      if (candidateError) {
+        console.error("Error creating candidate:", candidateError);
+        throw candidateError;
+      }
+      console.log("Candidate created successfully");
 
-      // Create interview session first
-      console.log("Creating interview session: ", interview_session_id);
+      // Create interview session
+      console.log("Creating interview session...");
       const interviewLink = `https://candidates.super-recuit.com/${interview_session_id}`;
       const { error: sessionError } = await supabase
         .from("interview_sessions")
@@ -175,12 +205,17 @@ export default function NewCandidate() {
           },
         ]);
 
-      if (sessionError) throw sessionError;
+      if (sessionError) {
+        console.error("Error creating interview session:", sessionError);
+        throw sessionError;
+      }
+      console.log("Interview session created successfully");
 
       setInterviewLink(interviewLink);
+      console.log("Redirecting to candidates dashboard...");
       router.push("/dashboard/candidates");
     } catch (error) {
-      console.error("Error creating candidate:", error);
+      console.error("Error in form submission:", error);
       alert("Error creating candidate. Please try again.");
     } finally {
       setLoading(false);
