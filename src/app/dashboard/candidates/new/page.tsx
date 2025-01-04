@@ -45,6 +45,8 @@ export default function NewCandidate() {
 
   // CV Upload
   const [cvFile, setCvFile] = useState<File | null>(null);
+  const [autoParseCV, setAutoParseCV] = useState(false);
+  const [isParsingCV, setIsParsingCV] = useState(false);
 
   const [interviewLink, setInterviewLink] = useState<string>("");
 
@@ -69,39 +71,46 @@ export default function NewCandidate() {
     if (acceptedFiles.length > 0) {
       setCvFile(acceptedFiles[0]);
 
+      if (!autoParseCV) return;
+
       // Send file to parse-cv endpoint
       const formData = new FormData();
       formData.append("file", acceptedFiles[0]);
 
-      try {
-        console.log("Sending file to API:", acceptedFiles[0].name);
-        const response = await fetch("/api/parse-cv", {
-          method: "POST",
-          headers: {
-            Accept: "application/json",
-          },
-          body: formData,
-        });
+      if (autoParseCV) {
+        try {
+          setIsParsingCV(true);
+          console.log("Sending file to API:", acceptedFiles[0].name);
+          const response = await fetch("/api/parse-cv", {
+            method: "POST",
+            headers: {
+              Accept: "application/json",
+            },
+            body: formData,
+          });
 
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+
+          const data = await response.json();
+          console.log("CV Parse Response:", data);
+
+          // populate the form fields with the parsed data from Eden AI
+          setParsedCV(data.parsedData || {});
+          setFirstName(data.parsedData?.personal_infos?.name?.first_name || "");
+          setLastName(data.parsedData?.personal_infos?.name?.last_name || "");
+          setEmail(data.parsedData?.personal_infos?.mails?.[0] || "");
+          setProfile(data.parsedData?.personal_infos?.self_summary || "");
+        } catch (error) {
+          console.error("Error parsing CV:", error);
+          // Add user feedback
+          alert(
+            "Failed to parse CV. Please try again or proceed with manual entry."
+          );
+        } finally {
+          setIsParsingCV(false);
         }
-
-        const data = await response.json();
-        console.log("CV Parse Response:", data);
-
-        // populate the form fields with the parsed data from Eden AI
-        setParsedCV(data.parsedData || {});
-        setFirstName(data.parsedData?.personal_infos?.name?.first_name || "");
-        setLastName(data.parsedData?.personal_infos?.name?.last_name || "");
-        setEmail(data.parsedData?.personal_infos?.mails?.[0] || "");
-        setProfile(data.parsedData?.personal_infos?.self_summary || "");
-      } catch (error) {
-        console.error("Error parsing CV:", error);
-        // Add user feedback
-        alert(
-          "Failed to parse CV. Please try again or proceed with manual entry."
-        );
       }
     }
   };
@@ -128,96 +137,132 @@ export default function NewCandidate() {
       const interview_session_id = crypto.randomUUID();
       console.log("Generated IDs:", { candidate_id, interview_session_id });
 
-      // Get current user
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
-      if (userError) {
-        console.error("User authentication error:", userError);
-        throw userError;
-      }
-      if (!user) {
-        console.error("No user found");
-        throw new Error("User not authenticated");
-      }
-      console.log("User authenticated:", user.id);
-
-      // Upload CV if present
-      let cvUrl = null;
-      if (cvFile) {
-        console.log("Uploading CV file...");
-        const fileExt = cvFile.name.split(".").pop();
-        const fileName = `${user.id}/${candidate_id}/cv.${fileExt}`;
-        const { error: uploadError, data } = await supabase.storage
-          .from(bucket)
-          .upload(fileName, cvFile);
-
-        if (uploadError) {
-          console.error("CV upload error:", uploadError);
-          throw uploadError;
+      try {
+        // Get current user
+        console.log("Attempting to get authenticated user...");
+        let userData;
+        try {
+          userData = await supabase.auth.getUser();
+          console.log("Raw auth response:", userData);
+        } catch (authError) {
+          console.error("Error during auth.getUser() call:", authError);
+          throw new Error(
+            `Authentication call failed: ${authError instanceof Error ? authError.message : "Unknown error"}`
+          );
         }
-        cvUrl = data.path;
-        console.log("CV uploaded successfully:", cvUrl);
+
+        const {
+          data: { user },
+          error: userError,
+        } = userData;
+
+        if (userError) {
+          console.error("User authentication error:", userError);
+          throw new Error(`Authentication error: ${userError.message}`);
+        }
+        if (!user) {
+          console.error("No user found");
+          throw new Error("User not authenticated");
+        }
+        console.log("User authenticated successfully:", user.id);
+
+        // Upload CV if present
+        let cvUrl = null;
+        if (cvFile) {
+          console.log("Starting CV file upload...");
+          const fileExt = cvFile.name.split(".").pop();
+          const fileName = `${user.id}/${candidate_id}/cv.${fileExt}`;
+          console.log("Preparing to upload to path:", fileName);
+
+          const { error: uploadError, data } = await supabase.storage
+            .from(bucket)
+            .upload(fileName, cvFile);
+
+          if (uploadError) {
+            console.error("CV upload error:", uploadError);
+            throw new Error(`CV upload error: ${uploadError.message}`);
+          }
+          cvUrl = data.path;
+          console.log("CV uploaded successfully to:", cvUrl);
+        }
+
+        // Create candidate record
+        console.log("Attempting to create candidate record with data:", {
+          candidate_id,
+          name: firstName,
+          last_name: lastName,
+          email,
+          cv: cvUrl,
+          job_description_id: selectedJobDescription || null,
+        });
+
+        const { error: candidateError } = await supabase
+          .from("candidates")
+          .insert([
+            {
+              candidate_id,
+              name: firstName,
+              last_name: lastName,
+              email: email,
+              cv: cvUrl,
+              status: "active",
+              job_description_id: selectedJobDescription || null,
+              profile,
+              parsed_cv: parsedCV,
+            },
+          ]);
+
+        if (candidateError) {
+          console.error("Error creating candidate:", candidateError);
+          throw new Error(
+            `Failed to create candidate: ${candidateError.message}`
+          );
+        }
+        console.log("Candidate created successfully");
+
+        // Create interview session
+        console.log("Attempting to create interview session...");
+        const interviewLink = `https://candidates.super-recuit.com/${interview_session_id}`;
+        const { error: sessionError } = await supabase
+          .from("interview_sessions")
+          .insert([
+            {
+              interview_session_id,
+              status: selectedJobDescription
+                ? "Prepared"
+                : "No interview assigned",
+              link: interviewLink,
+              candidate_id,
+              job_description_id: selectedJobDescription || null,
+              report: null,
+              transcript: null,
+              audio_interview: null,
+            },
+          ]);
+
+        if (sessionError) {
+          console.error("Error creating interview session:", sessionError);
+          throw new Error(
+            `Failed to create interview session: ${sessionError.message}`
+          );
+        }
+        console.log("Interview session created successfully");
+
+        setInterviewLink(interviewLink);
+        console.log(
+          "All operations completed successfully, redirecting to candidates dashboard..."
+        );
+        router.push("/dashboard/candidates");
+      } catch (error) {
+        console.error("Detailed submission error:", error);
+        alert(
+          `Error creating candidate: ${error instanceof Error ? error.message : "Unknown error occurred"}`
+        );
+        setLoading(false);
       }
-
-      // Then create candidate record
-      console.log("Creating candidate record...");
-      const { error: candidateError } = await supabase
-        .from("candidates")
-        .insert([
-          {
-            candidate_id,
-            name: firstName,
-            last_name: lastName,
-            email: email,
-            cv: cvUrl,
-            status: "active",
-            job_description_id: selectedJobDescription || null,
-            profile,
-            parsed_cv: parsedCV,
-          },
-        ]);
-
-      if (candidateError) {
-        console.error("Error creating candidate:", candidateError);
-        throw candidateError;
-      }
-      console.log("Candidate created successfully");
-
-      // Create interview session
-      console.log("Creating interview session...");
-      const interviewLink = `https://candidates.super-recuit.com/${interview_session_id}`;
-      const { error: sessionError } = await supabase
-        .from("interview_sessions")
-        .insert([
-          {
-            interview_session_id,
-            status: selectedJobDescription
-              ? "Prepared"
-              : "No interview assigned",
-            link: interviewLink,
-            candidate_id,
-            job_description_id: selectedJobDescription || null,
-            report: null,
-            transcript: null,
-            audio_interview: null,
-          },
-        ]);
-
-      if (sessionError) {
-        console.error("Error creating interview session:", sessionError);
-        throw sessionError;
-      }
-      console.log("Interview session created successfully");
-
-      setInterviewLink(interviewLink);
-      console.log("Redirecting to candidates dashboard...");
-      router.push("/dashboard/candidates");
-    } catch (error) {
-      console.error("Error in form submission:", error);
-      alert("Error creating candidate. Please try again.");
-    } finally {
+    } catch (outerError) {
+      console.error("Outer error in form submission:", outerError);
+      alert("Error in form submission. Please check the console for details.");
       setLoading(false);
     }
   };
@@ -232,7 +277,7 @@ export default function NewCandidate() {
             <CardHeader>
               <CardTitle>CV Upload</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
               <div
                 {...getRootProps()}
                 className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer
@@ -255,6 +300,29 @@ export default function NewCandidate() {
                     </>
                   )}
                 </div>
+              </div>
+
+              <div className="flex flex-col space-y-2">
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="autoParseCV"
+                    className="checkbox"
+                    checked={autoParseCV}
+                    onChange={(e) => setAutoParseCV(e.target.checked)}
+                    title="Toggle automatic CV parsing"
+                  />
+                  <Label htmlFor="autoParseCV">Automatically parse CV</Label>
+                </div>
+                {isParsingCV && (
+                  <div className="text-sm text-muted-foreground flex items-center space-x-2">
+                    <div className="loading loading-spinner loading-xs"></div>
+                    <span>
+                      Parsing CV... this should take less than a minute. We'll
+                      fill the info for you.
+                    </span>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
