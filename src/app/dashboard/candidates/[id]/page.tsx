@@ -19,12 +19,11 @@ export default function EditCandidate() {
   const [name, setName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
-  const [phoneNumber, setPhoneNumber] = useState("");
   const [cvFile, setCvFile] = useState<File | null>(null);
   const [currentCvUrl, setCurrentCvUrl] = useState("");
   const [jobDescriptions, setJobDescriptions] = useState<JobDescription[]>([]);
   const [selectedJobDescription, setSelectedJobDescription] =
-    useState<string>();
+    useState<string>("");
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -51,7 +50,7 @@ export default function EditCandidate() {
 
     const { data, error } = await supabase
       .from("candidates")
-      .select("*, job_description_sessions(job_description_id)")
+      .select("*")
       .eq("candidate_id", candidateId)
       .single();
 
@@ -64,11 +63,8 @@ export default function EditCandidate() {
       setName(data.name);
       setLastName(data.last_name);
       setEmail(data.email);
-      setPhoneNumber(data.phone_number);
       setCurrentCvUrl(data.cv);
-      setSelectedJobDescription(
-        data.job_description_sessions?.[0]?.job_description_id
-      );
+      setSelectedJobDescription(data.job_description_id || "");
     }
   }
 
@@ -89,7 +85,7 @@ export default function EditCandidate() {
         name,
         last_name: lastName,
         email,
-        phone_number: phoneNumber,
+        job_description_id: selectedJobDescription || null,
       };
 
       // Handle CV file update if provided
@@ -123,47 +119,18 @@ export default function EditCandidate() {
         throw updateError;
       }
 
-      // Handle job description assignment
-      if (selectedJobDescription) {
-        // Check if there's an existing session
-        const { data: existingSession } = await supabase
-          .from("job_description_sessions")
-          .select("job_description_session_id")
-          .eq("candidate_id", candidateId)
-          .single();
+      // Verify the update was successful
+      const { data: verifyData, error: verifyError } = await supabase
+        .from("candidates")
+        .select("*")
+        .eq("candidate_id", candidateId)
+        .single();
 
-        if (existingSession) {
-          // Update existing session
-          const { error: sessionUpdateError } = await supabase
-            .from("job_description_sessions")
-            .update({
-              job_description_id: selectedJobDescription,
-              status: "pending",
-            })
-            .eq(
-              "job_description_session_id",
-              existingSession.job_description_session_id
-            );
-
-          if (sessionUpdateError) {
-            throw sessionUpdateError;
-          }
-        } else {
-          // Create new session
-          const { error: sessionCreateError } = await supabase
-            .from("job_description_sessions")
-            .insert({
-              candidate_id: candidateId,
-              job_description_id: selectedJobDescription,
-              status: "pending",
-            });
-
-          if (sessionCreateError) {
-            throw sessionCreateError;
-          }
-        }
+      if (verifyError || !verifyData) {
+        throw new Error("Failed to verify update");
       }
 
+      alert("Candidate updated successfully!");
       router.push("/dashboard/candidates");
     } catch (error) {
       console.error("Error updating candidate:", error);
@@ -234,18 +201,27 @@ export default function EditCandidate() {
 
             <div>
               <label
-                htmlFor="phoneNumber"
+                htmlFor="jobDescription"
                 className="block text-sm font-medium text-gray-700"
               >
-                Phone Number
+                Assign Job Description
               </label>
-              <Input
-                type="tel"
-                id="phoneNumber"
-                value={phoneNumber}
-                onChange={(e) => setPhoneNumber(e.target.value)}
-                className="mt-1"
-              />
+              <select
+                id="jobDescription"
+                value={selectedJobDescription}
+                onChange={(e) => setSelectedJobDescription(e.target.value)}
+                className="select select-bordered w-full mt-1"
+              >
+                <option value="">Select a job description</option>
+                {jobDescriptions.map((jd) => (
+                  <option
+                    key={jd.job_description_id}
+                    value={jd.job_description_id}
+                  >
+                    {jd.name}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div>
@@ -274,31 +250,6 @@ export default function EditCandidate() {
                 onChange={(e) => setCvFile(e.target.files?.[0] || null)}
                 className="mt-1"
               />
-            </div>
-
-            <div>
-              <label
-                htmlFor="jobDescription"
-                className="block text-sm font-medium text-gray-700"
-              >
-                Assign Job Description
-              </label>
-              <select
-                id="jobDescription"
-                value={selectedJobDescription}
-                onChange={(e) => setSelectedJobDescription(e.target.value)}
-                className="select select-bordered w-full mt-1"
-              >
-                <option value="">Select a job description</option>
-                {jobDescriptions.map((jd) => (
-                  <option
-                    key={jd.job_description_id}
-                    value={jd.job_description_id}
-                  >
-                    {jd.name}
-                  </option>
-                ))}
-              </select>
             </div>
 
             <div className="flex justify-end space-x-2">
