@@ -7,7 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useRouter } from "next/navigation";
 
 interface RawJobDescriptionSession {
-  job_description_session_id: string;
+  interview_session_id: string;
   status: string;
   link: string;
   report: string;
@@ -17,7 +17,6 @@ interface RawJobDescriptionSession {
     name: string;
     last_name: string;
     email: string;
-    phone_number: string;
     cv: string;
     status: string;
   } | null;
@@ -29,7 +28,7 @@ interface RawJobDescription {
   job_description: string;
   additional_context: string;
   parsing_result: string;
-  job_description_sessions: RawJobDescriptionSession[];
+  interview_sessions: RawJobDescriptionSession[];
 }
 
 interface JobDescription {
@@ -39,7 +38,7 @@ interface JobDescription {
   additional_context: string;
   parsing_result: string;
   sessions: {
-    job_description_id: string;
+    interview_session_id: string;
     status: string;
     link: string;
     report: string;
@@ -49,7 +48,6 @@ interface JobDescription {
       name: string;
       last_name: string;
       email: string;
-      phone_number: string;
       cv: string;
       status: string;
     } | null;
@@ -69,45 +67,57 @@ export default function JobDescriptionList() {
   }, []);
 
   async function fetchJobDescriptions() {
-    const { data, error } = await supabase
-      .from("job_descriptions")
-      .select(
-        `
-        *,
-        job_description_sessions!job_description_sessions_job_description_id_fkey(
-          job_description_id,
-          status,
-          link,
-          report,
-          transcript,
-          audio_interview,
-          candidate:candidates(
-            name,
-            last_name,
-            email,
-            phone_number,
-            cv,
-            status
+    try {
+      const { data, error } = await supabase
+        .from("job_descriptions")
+        .select(
+          `
+          *,
+          interview_sessions!interview_sessions_job_description_id_fkey(
+            interview_session_id,
+            status,
+            link,
+            report,
+            transcript,
+            audio_interview,
+            candidate:candidates(
+              name,
+              last_name,
+              email,
+              cv,
+              status
+            )
           )
+        `
         )
-      `
-      )
-      .order("name", { ascending: false });
+        .order("name", { ascending: false });
 
-    if (error) {
-      console.error("Error fetching job descriptions:", error);
-    } else {
-      const transformedData = (data as RawJobDescription[])?.map(
+      if (error) {
+        console.error("Error fetching job descriptions:", error.message);
+        return;
+      }
+
+      // Handle empty data case
+      if (!data || data.length === 0) {
+        setJobDescriptions([]);
+        return;
+      }
+
+      const transformedData = (data as RawJobDescription[]).map(
         (jobDescription) => ({
           ...jobDescription,
           sessions:
-            jobDescription.job_description_sessions.map((session) => ({
+            jobDescription.interview_sessions?.map((session) => ({
               ...session,
-              job_description_id: session.job_description_session_id,
+              job_description_id: session.interview_session_id,
             })) || [],
         })
       );
-      setJobDescriptions(transformedData || []);
+
+      setJobDescriptions(transformedData);
+    } catch (err) {
+      console.error("Unexpected error while fetching job descriptions:", err);
+      setJobDescriptions([]);
     }
   }
 

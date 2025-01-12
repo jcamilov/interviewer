@@ -1,4 +1,5 @@
-import { parseFile } from '@/utils/parse-file';
+import { parseCV } from '@/utils/parse-cv';
+import { parseJD } from '@/utils/parse-jd';
 import { NextResponse } from 'next/server';
 
 export async function GET() {
@@ -12,11 +13,19 @@ export async function POST(request: Request) {
   try {
     const formData = await request.formData();
     const file = formData.get('file') as File | null;
+    const type = formData.get('type') as string | null;
 
     if (!file) {
       return NextResponse.json({ 
         success: false, 
         error: 'No file provided' 
+      }, { status: 400 });
+    }
+
+    if (!type || (type !== 'cv' && type !== 'jd')) {
+      return NextResponse.json({ 
+        success: false, 
+        error: 'Type must be either "cv" or "jd"' 
       }, { status: 400 });
     }
 
@@ -28,13 +37,15 @@ export async function POST(request: Request) {
       }, { status: 400 });
     }
 
-    // parse the file
-    // const parsedFile = await parseFile(file, fileExtension as 'pdf' | 'docx');
-    // console.log(parsedFile);
+    // Parse the file based on type
+    const parsedData = await (type === 'cv' ? parseCV(file) : parseJD(file));
+    console.log(parsedData);
 
     return NextResponse.json({ 
       success: true,
       filename: file.name,
+      type,
+      parsedData,
       timestamp: new Date().toISOString()
     }, { status: 200 });
 

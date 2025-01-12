@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { parseCV } from '@/utils/parse-cv';
+import { parseJD } from '@/utils/parse-jd';
 
 export const config = {
   api: {
@@ -26,13 +26,13 @@ export async function POST(request: Request) {
 
     // Parse the file
     try {
-      const parsedData = await parseCV(file);
+      const parsedData = await parseJD(file);
       return NextResponse.json({ parsedData, fileName });
     } catch (error) {
       console.error('Error parsing file:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       return NextResponse.json(
-        { error: 'Failed to parse CV file', details: errorMessage },
+        { error: 'Failed to parse job description file', details: errorMessage },
         { status: 422 }
       );
     }
@@ -44,4 +44,4 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
-}
+} 
