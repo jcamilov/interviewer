@@ -15,6 +15,15 @@ interface JobDescription {
   name: string;
 }
 
+async function getSignedUrl(supabase: any, bucket: string, path: string) {
+  const { data, error } = await supabase.storage
+    .from(bucket)
+    .createSignedUrl(path, 3600); // URL valid for 1 hour
+
+  if (error) throw error;
+  return data.signedUrl;
+}
+
 export default function NewCandidate() {
   const bucket = "user-files";
   const router = useRouter();
@@ -159,7 +168,7 @@ export default function NewCandidate() {
           const fileName = `${user.id}/${candidate_id}/cv.${fileExt}`;
           console.log("Preparing to upload to path:", fileName);
 
-          const { error: uploadError, data } = await supabase.storage
+          const { error: uploadError } = await supabase.storage
             .from(bucket)
             .upload(fileName, cvFile);
 
@@ -168,13 +177,9 @@ export default function NewCandidate() {
             throw new Error(`CV upload error: ${uploadError.message}`);
           }
 
-          // Get the public URL for the uploaded file
-          const {
-            data: { publicUrl },
-          } = supabase.storage.from(bucket).getPublicUrl(fileName);
-
-          cvUrl = publicUrl;
-          console.log("CV uploaded successfully, public URL:", cvUrl);
+          // Store the path instead of URL
+          cvUrl = fileName; // Reuse cvUrl variable to store the path
+          console.log("CV uploaded successfully, storage path:", cvUrl);
         }
 
         // Create candidate record
@@ -183,7 +188,7 @@ export default function NewCandidate() {
           name: firstName,
           last_name: lastName,
           email,
-          cv: cvUrl,
+          cv_path: cvUrl, // Renamed from cv to cv_path
           job_description_id: selectedJobDescription || null,
         });
 
@@ -195,7 +200,7 @@ export default function NewCandidate() {
               name: firstName,
               last_name: lastName,
               email: email,
-              cv: cvUrl,
+              cv_path: cvUrl, // Renamed from cv to cv_path
               status: "active",
               job_description_id: selectedJobDescription || null,
               profile,

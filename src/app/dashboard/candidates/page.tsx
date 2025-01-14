@@ -19,9 +19,18 @@ interface Candidate {
   last_name: string;
   email: string;
   phone_number: string;
-  cv: string;
+  cv_path: string;
   status: string;
   job_description_id: string | null;
+}
+
+async function getSignedUrl(supabase: any, bucket: string, path: string) {
+  const { data, error } = await supabase.storage
+    .from(bucket)
+    .createSignedUrl(path, 3600); // URL valid for 1 hour
+
+  if (error) throw error;
+  return data.signedUrl;
 }
 
 export default function CandidateList() {
@@ -82,10 +91,10 @@ export default function CandidateList() {
     if (selectedCandidates.size === 0) return;
 
     try {
-      // First, get the CV URLs for the selected candidates
+      // First, get the CV paths for the selected candidates
       const { data: selectedCandidateData, error: fetchError } = await supabase
         .from("candidates")
-        .select("candidate_id, cv")
+        .select("candidate_id, cv_path")
         .in("candidate_id", Array.from(selectedCandidates));
 
       if (fetchError) {
@@ -95,18 +104,13 @@ export default function CandidateList() {
 
       // Delete CV files from storage for each candidate
       for (const candidate of selectedCandidateData) {
-        if (candidate.cv) {
-          // Extract the path from the URL
-          const fileUrl = new URL(candidate.cv);
-          const filePath = fileUrl.pathname.split("/").pop();
-          if (filePath) {
-            const { error: storageError } = await supabase.storage
-              .from("user-files")
-              .remove([filePath]);
+        if (candidate.cv_path) {
+          const { error: storageError } = await supabase.storage
+            .from("user-files")
+            .remove([candidate.cv_path]);
 
-            if (storageError) {
-              console.error("Error deleting CV file:", storageError);
-            }
+          if (storageError) {
+            console.error("Error deleting CV file:", storageError);
           }
         }
       }
@@ -199,14 +203,29 @@ export default function CandidateList() {
                     {candidate.phone_number}
                   </td>
                   <td>
-                    <a
-                      href={candidate.cv}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-500 underline"
-                    >
-                      Download
-                    </a>
+                    {candidate.cv_path ? (
+                      <Button
+                        variant="link"
+                        className="text-blue-500 underline p-0"
+                        onClick={async () => {
+                          try {
+                            const signedUrl = await getSignedUrl(
+                              supabase,
+                              "user-files",
+                              candidate.cv_path
+                            );
+                            window.open(signedUrl, "_blank");
+                          } catch (error) {
+                            console.error("Error getting signed URL:", error);
+                            alert("Error accessing CV file");
+                          }
+                        }}
+                      >
+                        Download
+                      </Button>
+                    ) : (
+                      "No CV"
+                    )}
                   </td>
                   <td>{candidate.status}</td>
                   <td>{candidate.job_description_id || "Not assigned"}</td>

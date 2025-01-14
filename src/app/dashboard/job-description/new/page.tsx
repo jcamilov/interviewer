@@ -12,6 +12,15 @@ import { v4 as uuidv4 } from "uuid";
 import { useDropzone } from "react-dropzone";
 import { PlusIcon } from "@heroicons/react/24/outline";
 
+async function getSignedUrl(supabase: any, bucket: string, path: string) {
+  const { data, error } = await supabase.storage
+    .from(bucket)
+    .createSignedUrl(path, 3600); // URL valid for 1 hour
+
+  if (error) throw error;
+  return data.signedUrl;
+}
+
 export default function NewJobDescription() {
   const router = useRouter();
   const supabase = createClientComponentClient();
@@ -63,15 +72,11 @@ export default function NewJobDescription() {
         throw jdUploadError;
       }
 
-      const {
-        data: { publicUrl: jdPublicUrl },
-      } = supabase.storage.from("job_descriptions").getPublicUrl(jdStoragePath);
-
       // Upload additional context file if provided
-      let acPublicUrl = null;
+      let acStoragePath = null;
       if (additionalContextFile) {
         const acExtension = additionalContextFile.name.split(".").pop();
-        const acStoragePath = `${user.id}/ac_${jobDescriptionId}_${timestamp}.${acExtension}`;
+        acStoragePath = `${user.id}/ac_${jobDescriptionId}_${timestamp}.${acExtension}`;
 
         const { error: acUploadError } = await supabase.storage
           .from("job_descriptions")
@@ -80,23 +85,16 @@ export default function NewJobDescription() {
         if (acUploadError) {
           throw acUploadError;
         }
-
-        const {
-          data: { publicUrl },
-        } = supabase.storage
-          .from("job_descriptions")
-          .getPublicUrl(acStoragePath);
-        acPublicUrl = publicUrl;
       }
 
-      // Create job description record
+      // Create job description record with paths instead of URLs
       const { error: insertError } = await supabase
         .from("job_descriptions")
         .insert({
           job_description_id: jobDescriptionId,
           name,
-          file_url: jdPublicUrl,
-          additional_context: acPublicUrl,
+          file_path: jdStoragePath,
+          additional_context: acStoragePath,
           parsed_data: parsedJobDescription,
         });
 

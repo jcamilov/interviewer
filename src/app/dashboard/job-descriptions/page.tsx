@@ -17,7 +17,7 @@ interface RawJobDescriptionSession {
     name: string;
     last_name: string;
     email: string;
-    cv: string;
+    cv_path: string;
     status: string;
   } | null;
 }
@@ -25,7 +25,7 @@ interface RawJobDescriptionSession {
 interface RawJobDescription {
   job_description_id: string;
   name: string;
-  job_description: string;
+  file_path: string;
   additional_context: string;
   parsing_result: string;
   interview_sessions: RawJobDescriptionSession[];
@@ -34,7 +34,7 @@ interface RawJobDescription {
 interface JobDescription {
   job_description_id: string;
   name: string;
-  file_url: string;
+  file_path: string;
   additional_context: string;
   parsed_data: string;
   sessions: {
@@ -48,10 +48,19 @@ interface JobDescription {
       name: string;
       last_name: string;
       email: string;
-      cv: string;
+      cv_path: string;
       status: string;
     } | null;
   }[];
+}
+
+async function getSignedUrl(supabase: any, bucket: string, path: string) {
+  const { data, error } = await supabase.storage
+    .from(bucket)
+    .createSignedUrl(path, 3600); // URL valid for 1 hour
+
+  if (error) throw error;
+  return data.signedUrl;
 }
 
 export default function JobDescriptionList() {
@@ -84,7 +93,7 @@ export default function JobDescriptionList() {
               name,
               last_name,
               email,
-              cv,
+              cv_path,
               status
             )
           )
@@ -107,13 +116,18 @@ export default function JobDescriptionList() {
         (jobDescription) => ({
           job_description_id: jobDescription.job_description_id,
           name: jobDescription.name,
-          file_url: jobDescription.job_description,
+          file_path: jobDescription.file_path,
           additional_context: jobDescription.additional_context,
           parsed_data: jobDescription.parsing_result,
           sessions:
             jobDescription.interview_sessions?.map((session) => ({
-              ...session,
-              job_description_id: session.interview_session_id,
+              interview_session_id: session.interview_session_id,
+              status: session.status,
+              link: session.link,
+              report: session.report,
+              transcript: session.transcript,
+              audio_interview: session.audio_interview,
+              candidate: session.candidate,
             })) || [],
         })
       );
@@ -220,26 +234,54 @@ export default function JobDescriptionList() {
                     {jobDescription.name}
                   </td>
                   <td className="truncate max-w-[300px]">
-                    <a
-                      href={jobDescription.file_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-500 underline"
-                    >
-                      Download
-                    </a>
+                    {jobDescription.file_path ? (
+                      <Button
+                        variant="link"
+                        className="text-blue-500 underline p-0"
+                        onClick={async () => {
+                          try {
+                            const signedUrl = await getSignedUrl(
+                              supabase,
+                              "job_descriptions",
+                              jobDescription.file_path
+                            );
+                            window.open(signedUrl, "_blank");
+                          } catch (error) {
+                            console.error("Error getting signed URL:", error);
+                            alert("Error accessing job description file");
+                          }
+                        }}
+                      >
+                        Download
+                      </Button>
+                    ) : (
+                      "No file"
+                    )}
                   </td>
                   <td className="truncate max-w-[200px]">
-                    <a
-                      href={jobDescription.additional_context}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className={`text-blue-500 ${
-                        jobDescription.additional_context ? "underline" : ""
-                      }`}
-                    >
-                      {jobDescription.additional_context ? "Download" : "-"}
-                    </a>
+                    {jobDescription.additional_context ? (
+                      <Button
+                        variant="link"
+                        className="text-blue-500 underline p-0"
+                        onClick={async () => {
+                          try {
+                            const signedUrl = await getSignedUrl(
+                              supabase,
+                              "job_descriptions",
+                              jobDescription.additional_context
+                            );
+                            window.open(signedUrl, "_blank");
+                          } catch (error) {
+                            console.error("Error getting signed URL:", error);
+                            alert("Error accessing additional context file");
+                          }
+                        }}
+                      >
+                        Download
+                      </Button>
+                    ) : (
+                      "-"
+                    )}
                   </td>
                   <td className="truncate max-w-[200px]">
                     {jobDescription.sessions

@@ -12,6 +12,15 @@ interface JobDescription {
   name: string;
 }
 
+async function getSignedUrl(supabase: any, bucket: string, path: string) {
+  const { data, error } = await supabase.storage
+    .from(bucket)
+    .createSignedUrl(path, 3600); // URL valid for 1 hour
+
+  if (error) throw error;
+  return data.signedUrl;
+}
+
 export default function EditCandidate() {
   const { id: candidateId } = useParams();
   const router = useRouter();
@@ -63,7 +72,7 @@ export default function EditCandidate() {
       setName(data.name);
       setLastName(data.last_name);
       setEmail(data.email);
-      setCurrentCvUrl(data.cv);
+      setCurrentCvUrl(data.cv_path);
       setSelectedJobDescription(data.job_description_id || "");
     }
   }
@@ -251,6 +260,33 @@ export default function EditCandidate() {
                 className="mt-1"
               />
             </div>
+
+            {currentCvUrl && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Current CV
+                </label>
+                <Button
+                  variant="link"
+                  className="text-blue-500 underline p-0 mt-1"
+                  onClick={async () => {
+                    try {
+                      const signedUrl = await getSignedUrl(
+                        supabase,
+                        "user-files",
+                        currentCvUrl
+                      );
+                      window.open(signedUrl, "_blank");
+                    } catch (error) {
+                      console.error("Error getting signed URL:", error);
+                      alert("Error accessing CV file");
+                    }
+                  }}
+                >
+                  Download Current CV
+                </Button>
+              </div>
+            )}
 
             <div className="flex justify-end space-x-2">
               <Button
