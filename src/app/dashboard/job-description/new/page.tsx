@@ -6,10 +6,9 @@ import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { format } from "date-fns";
 import { v4 as uuidv4 } from "uuid";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faUpload } from "@fortawesome/free-solid-svg-icons";
 import { useDropzone } from "react-dropzone";
 import { PlusIcon } from "@heroicons/react/24/outline";
 
@@ -29,6 +28,7 @@ export default function NewJobDescription() {
   const [parsedJobDescription, setParsedJobDescription] = useState<
     Record<string, any>
   >({});
+  const [autoParseJD, setAutoParseJD] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -93,11 +93,10 @@ export default function NewJobDescription() {
       const { error: insertError } = await supabase
         .from("job_descriptions")
         .insert({
-          name,
-          job_description: jdPublicUrl,
-          additional_context: acPublicUrl,
           job_description_id: jobDescriptionId,
-          status: "pending",
+          name,
+          file_url: jdPublicUrl,
+          additional_context: acPublicUrl,
           parsed_data: parsedJobDescription,
         });
 
@@ -117,6 +116,8 @@ export default function NewJobDescription() {
   const onDrop = async (acceptedFiles: File[]) => {
     if (acceptedFiles.length > 0) {
       setJobDescriptionFile(acceptedFiles[0]);
+
+      if (!autoParseJD) return;
 
       try {
         setIsParsing(true);
@@ -200,6 +201,19 @@ export default function NewJobDescription() {
                 </div>
               </div>
               <div className="flex flex-col space-y-2">
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="autoParseJD"
+                    className="checkbox"
+                    checked={autoParseJD}
+                    onChange={(e) => setAutoParseJD(e.target.checked)}
+                    title="Toggle automatic job description parsing"
+                  />
+                  <Label htmlFor="autoParseJD">
+                    Automatically parse job description
+                  </Label>
+                </div>
                 {isParsing && (
                   <div className="text-sm text-muted-foreground flex items-center space-x-2">
                     <div className="loading loading-spinner loading-xs"></div>

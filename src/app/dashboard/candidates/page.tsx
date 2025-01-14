@@ -81,18 +81,52 @@ export default function CandidateList() {
   const handleDelete = async () => {
     if (selectedCandidates.size === 0) return;
 
-    const { error } = await supabase
-      .from("candidates")
-      .delete()
-      .in("candidate_id", Array.from(selectedCandidates));
+    try {
+      // First, get the CV URLs for the selected candidates
+      const { data: selectedCandidateData, error: fetchError } = await supabase
+        .from("candidates")
+        .select("candidate_id, cv")
+        .in("candidate_id", Array.from(selectedCandidates));
 
-    if (error) {
-      console.error("Error deleting candidates:", error);
-      return;
+      if (fetchError) {
+        console.error("Error fetching candidate data:", fetchError);
+        return;
+      }
+
+      // Delete CV files from storage for each candidate
+      for (const candidate of selectedCandidateData) {
+        if (candidate.cv) {
+          // Extract the path from the URL
+          const fileUrl = new URL(candidate.cv);
+          const filePath = fileUrl.pathname.split("/").pop();
+          if (filePath) {
+            const { error: storageError } = await supabase.storage
+              .from("user-files")
+              .remove([filePath]);
+
+            if (storageError) {
+              console.error("Error deleting CV file:", storageError);
+            }
+          }
+        }
+      }
+
+      // Then delete the candidate records
+      const { error } = await supabase
+        .from("candidates")
+        .delete()
+        .in("candidate_id", Array.from(selectedCandidates));
+
+      if (error) {
+        console.error("Error deleting candidates:", error);
+        return;
+      }
+
+      setSelectedCandidates(new Set());
+      fetchCandidates();
+    } catch (error) {
+      console.error("Error in delete operation:", error);
     }
-
-    setSelectedCandidates(new Set());
-    fetchCandidates();
   };
 
   const handleAssignJobDescription = async (candidateId: string) => {

@@ -34,9 +34,9 @@ interface RawJobDescription {
 interface JobDescription {
   job_description_id: string;
   name: string;
-  job_description: string;
+  file_url: string;
   additional_context: string;
-  parsing_result: string;
+  parsed_data: string;
   sessions: {
     interview_session_id: string;
     status: string;
@@ -105,7 +105,11 @@ export default function JobDescriptionList() {
 
       const transformedData = (data as RawJobDescription[]).map(
         (jobDescription) => ({
-          ...jobDescription,
+          job_description_id: jobDescription.job_description_id,
+          name: jobDescription.name,
+          file_url: jobDescription.job_description,
+          additional_context: jobDescription.additional_context,
+          parsed_data: jobDescription.parsing_result,
           sessions:
             jobDescription.interview_sessions?.map((session) => ({
               ...session,
@@ -217,7 +221,7 @@ export default function JobDescriptionList() {
                   </td>
                   <td className="truncate max-w-[300px]">
                     <a
-                      href={jobDescription.job_description}
+                      href={jobDescription.file_url}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-blue-500 underline"
@@ -230,9 +234,11 @@ export default function JobDescriptionList() {
                       href={jobDescription.additional_context}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-blue-500 underline"
+                      className={`text-blue-500 ${
+                        jobDescription.additional_context ? "underline" : ""
+                      }`}
                     >
-                      Download
+                      {jobDescription.additional_context ? "Download" : "-"}
                     </a>
                   </td>
                   <td className="truncate max-w-[200px]">

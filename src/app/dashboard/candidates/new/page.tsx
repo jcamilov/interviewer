@@ -6,17 +6,9 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { DatePicker } from "@/components/ui/date-picker";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useDropzone } from "react-dropzone";
-import { PlusIcon, ShareIcon } from "@heroicons/react/24/outline";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+import { PlusIcon } from "@heroicons/react/24/outline";
 
 interface JobDescription {
   job_description_id: string;
@@ -39,16 +31,10 @@ export default function NewCandidate() {
   const [selectedJobDescription, setSelectedJobDescription] =
     useState<string>("");
 
-  // Interview Data
-  const [startDate, setStartDate] = useState<Date | undefined>(undefined);
-  const [endDate, setEndDate] = useState<Date | undefined>(undefined);
-
   // CV Upload
   const [cvFile, setCvFile] = useState<File | null>(null);
   const [autoParseCV, setAutoParseCV] = useState(false);
   const [isParsingCV, setIsParsingCV] = useState(false);
-
-  const [interviewLink, setInterviewLink] = useState<string>("");
 
   useEffect(() => {
     fetchJobDescriptions();
@@ -132,10 +118,9 @@ export default function NewCandidate() {
     console.log("Starting form submission...");
 
     try {
-      // Generate UUIDs
+      // Generate UUID for candidate
       const candidate_id = crypto.randomUUID();
-      const interview_session_id = crypto.randomUUID();
-      console.log("Generated IDs:", { candidate_id, interview_session_id });
+      console.log("Generated ID:", { candidate_id });
 
       try {
         // Get current user
@@ -182,8 +167,14 @@ export default function NewCandidate() {
             console.error("CV upload error:", uploadError);
             throw new Error(`CV upload error: ${uploadError.message}`);
           }
-          cvUrl = data.path;
-          console.log("CV uploaded successfully to:", cvUrl);
+
+          // Get the public URL for the uploaded file
+          const {
+            data: { publicUrl },
+          } = supabase.storage.from(bucket).getPublicUrl(fileName);
+
+          cvUrl = publicUrl;
+          console.log("CV uploaded successfully, public URL:", cvUrl);
         }
 
         // Create candidate record
@@ -220,35 +211,6 @@ export default function NewCandidate() {
         }
         console.log("Candidate created successfully");
 
-        // Create interview session
-        console.log("Attempting to create interview session...");
-        const interviewLink = `https://candidates.super-recuit.com/${interview_session_id}`;
-        const { error: sessionError } = await supabase
-          .from("interview_sessions")
-          .insert([
-            {
-              interview_session_id,
-              status: selectedJobDescription
-                ? "Prepared"
-                : "No interview assigned",
-              link: interviewLink,
-              candidate_id,
-              job_description_id: selectedJobDescription || null,
-              report: null,
-              transcript: null,
-              audio_interview: null,
-            },
-          ]);
-
-        if (sessionError) {
-          console.error("Error creating interview session:", sessionError);
-          throw new Error(
-            `Failed to create interview session: ${sessionError.message}`
-          );
-        }
-        console.log("Interview session created successfully");
-
-        setInterviewLink(interviewLink);
         console.log(
           "All operations completed successfully, redirecting to candidates dashboard..."
         );
@@ -256,7 +218,7 @@ export default function NewCandidate() {
       } catch (error) {
         console.error("Detailed submission error:", error);
         alert(
-          `Error creating candidate: ${error instanceof Error ? error.message : "Unknown error occurred"}`
+          `Error creating candidate: ${error instanceof Error ? error.message : "Unknown error"}`
         );
         setLoading(false);
       }
@@ -372,83 +334,21 @@ export default function NewCandidate() {
               </div>
               <div className="space-y-2">
                 <Label>(optional) Assign to a job opening</Label>
-                <div className="flex gap-2">
-                  <select
-                    className="select select-bordered w-full"
-                    value={selectedJobDescription}
-                    onChange={(e) => setSelectedJobDescription(e.target.value)}
-                  >
-                    <option value="">Select Job Description</option>
-                    {jobDescriptions.map((jobDescription) => (
-                      <option
-                        key={jobDescription.job_description_id}
-                        value={jobDescription.job_description_id}
-                      >
-                        {jobDescription.name}
-                      </option>
-                    ))}
-                  </select>
-                  {interviewLink && (
-                    <Dialog>
-                      <DialogTrigger asChild>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          className="px-2"
-                          title="Share interview"
-                        >
-                          <ShareIcon className="h-4 w-4" />
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent>
-                        <DialogHeader>
-                          <DialogTitle>Share Interview Link</DialogTitle>
-                        </DialogHeader>
-                        <div className="flex flex-col gap-4">
-                          <p className="text-sm text-gray-500">
-                            Share this link with the candidate to start the
-                            interview:
-                          </p>
-                          <div className="flex gap-2">
-                            <Input
-                              value={interviewLink}
-                              readOnly
-                              onClick={(e) => e.currentTarget.select()}
-                            />
-                            <Button
-                              type="button"
-                              onClick={() => {
-                                navigator.clipboard.writeText(interviewLink);
-                                alert("Link copied to clipboard!");
-                              }}
-                            >
-                              Copy
-                            </Button>
-                          </div>
-                        </div>
-                      </DialogContent>
-                    </Dialog>
-                  )}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Interview Section */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Interview</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Start Date</Label>
-                  <DatePicker date={startDate} setDate={setStartDate} />
-                </div>
-                <div className="space-y-2">
-                  <Label>End Date</Label>
-                  <DatePicker date={endDate} setDate={setEndDate} />
-                </div>
+                <select
+                  className="select select-bordered w-full"
+                  value={selectedJobDescription}
+                  onChange={(e) => setSelectedJobDescription(e.target.value)}
+                >
+                  <option value="">Select Job Description</option>
+                  {jobDescriptions.map((jobDescription) => (
+                    <option
+                      key={jobDescription.job_description_id}
+                      value={jobDescription.job_description_id}
+                    >
+                      {jobDescription.name}
+                    </option>
+                  ))}
+                </select>
               </div>
             </CardContent>
           </Card>
