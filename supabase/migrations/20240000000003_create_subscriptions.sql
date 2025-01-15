@@ -1,3 +1,9 @@
+-- Drop existing tables if they exist
+DROP TABLE IF EXISTS public.billing_history CASCADE;
+DROP TABLE IF EXISTS public.subscriptions CASCADE;
+DROP TABLE IF EXISTS public.customer_subscriptions CASCADE;
+DROP TABLE IF EXISTS public.subscription_plans CASCADE;
+
 -- Create subscription plans table
 CREATE TABLE subscription_plans (
   id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -30,17 +36,16 @@ CREATE TABLE customer_subscriptions (
 
 -- Create billing history table
 CREATE TABLE billing_history (
-  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id uuid REFERENCES auth.users NOT NULL,
-  subscription_id uuid REFERENCES customer_subscriptions,
-  amount numeric(10,2) NOT NULL,
-  currency text NOT NULL DEFAULT 'usd',
-  status text NOT NULL,
-  invoice_url text,
-  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE,
+    amount integer NOT NULL,
+    currency text NOT NULL DEFAULT 'usd',
+    status text NOT NULL,
+    invoice_url text,
+    created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- Add RLS policies
+-- Enable RLS
 ALTER TABLE subscription_plans ENABLE ROW LEVEL SECURITY;
 ALTER TABLE customer_subscriptions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE billing_history ENABLE ROW LEVEL SECURITY;
@@ -56,9 +61,32 @@ CREATE POLICY "Users can view their own subscriptions" ON customer_subscriptions
 CREATE POLICY "Users can update their own subscriptions" ON customer_subscriptions
   FOR UPDATE USING (auth.uid() = user_id);
 
--- Policies for billing_history
-CREATE POLICY "Users can view their own billing history" ON billing_history
-  FOR SELECT USING (auth.uid() = user_id);
+-- Policies for billing history
+CREATE POLICY "Users can view own billing history"
+    ON billing_history
+    FOR SELECT
+    TO authenticated
+    USING (auth.uid() = user_id);
+
+-- Create function to update updated_at timestamp
+CREATE OR REPLACE FUNCTION public.subscriptions_handle_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = timezone('utc'::text, now());
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+-- Create triggers for updated_at
+CREATE TRIGGER handle_subscriptions_updated_at
+    BEFORE UPDATE ON subscription_plans
+    FOR EACH ROW
+    EXECUTE FUNCTION public.subscriptions_handle_updated_at();
+
+CREATE TRIGGER handle_subscriptions_updated_at
+    BEFORE UPDATE ON customer_subscriptions
+    FOR EACH ROW
+    EXECUTE FUNCTION public.subscriptions_handle_updated_at();
 
 -- Insert some default plans
 INSERT INTO subscription_plans (name, description, price_id, amount, interval, features) VALUES
